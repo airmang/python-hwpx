@@ -35,6 +35,7 @@ from .plan import (
 from .layout.pages import (
     AreaPlacement,
     ColumnArea,
+    ColumnSeparator,
     EstimatedLine,
     LabelPlacement,
     LayoutEstimate,
@@ -70,6 +71,7 @@ __all__ = [
     "ObjectPlacement",
     "AreaPlacement",
     "LabelPlacement",
+    "ColumnSeparator",
     "EditPlan",
     "PlanReport",
     "PlanValidationError",

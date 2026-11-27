@@ -257,7 +257,7 @@ __all__ = [
     "EstimatedLine", "PageEstimate", "estimate_pages",
     "ColumnArea", "PagePlacement", "LinePlacement", "ParagraphPlacement", "LayoutEstimate", "estimate_layout",
     "TablePlacement", "TableRowPlacement", "TableCellPlacement", "TableCellLinePlacement", "TableCaptionPlacement",
-    "ObjectPlacement", "AreaPlacement", "LabelPlacement",
+    "ObjectPlacement", "AreaPlacement", "LabelPlacement", "ColumnSeparator",
 ]
 
 
@@ -287,19 +287,36 @@ class PageEstimate:
 
 
 @dataclass(frozen=True)
+class ColumnSeparator:
+    """The line Hancom draws between the columns of an area (``hp:colPr/hp:colLine``): its *type* and *color* as
+    written (``#000000`` when no colour is written), its width as written in mm (*width_mm*) and in HWPUNIT
+    (*width*, rounded as the layout reads a note's separator line); both ``None`` when no width is written or it
+    does not read as a number."""
+
+    type: str
+    width_mm: float | None
+    width: int | None
+    color: str
+
+
+@dataclass(frozen=True)
 class ColumnArea:
     """A column configuration beginning at *top*, measured from the paper top in HWPUNIT.
 
     *gap* is the one gap between columns of equal width (``None`` for columns of unequal width). *gaps* holds the
     gap after each column but the last, for columns of either kind (``hp:colSz@gap`` each its share of 32768 of the
     text width, rounded as the widths are; ``()`` for one column): column *n* starts ``sum(widths[:n]) +
-    sum(gaps[:n])`` right of the body's left edge.
+    sum(gaps[:n])`` right of the body's left edge. *separator* is the line drawn between its columns (``None`` for
+    one column, or no line or one of type ``NONE``); the layout gives no x for it: it runs in each gap, from
+    ``sum(widths[:n + 1]) + sum(gaps[:n])`` to ``sum(widths[:n + 1]) + sum(gaps[:n + 1])`` right of the body's
+    left edge (Hancom draws it in the middle of the gap).
     """
 
     top: int
     widths: tuple[int, ...]
     gap: int | None
     gaps: tuple[int, ...] = ()
+    separator: ColumnSeparator | None = None
 
 
 @dataclass(frozen=True)
@@ -776,6 +793,8 @@ class _Page:
     footer: int = 0
     #: columns of unequal width: the gap after each but the last (the placement reads them, see :func:`_column_gaps`)
     gaps: tuple[int, ...] = ()
+    #: the line between the columns, read for the placement only (traced layouts; see :func:`_column_separator`)
+    separator: ColumnSeparator | None = None
 
 
 def _page(section: Any) -> _Page:
@@ -853,6 +872,25 @@ def _column_gaps(settings: Any, text_width: int) -> tuple[int, ...]:
     sizes = settings.findall(f"{HP}colSz")
     return tuple((2 * int(size.get("gap", 0)) * text_width + COLUMN_SHARES) // (2 * COLUMN_SHARES)
                  for size in sizes[:-1])
+
+
+def _column_separator(settings: Any) -> ColumnSeparator | None:
+    """The line between the columns of the column settings *settings* (``hp:colPr/hp:colLine``); ``None`` for one
+    column, or no line or one of type ``NONE`` (placement tracing only: the layout does not read it)."""
+
+    if settings is None or int(settings.get("colCount", "1")) <= 1:
+        return None
+    line = settings.find(f"{HP}colLine")
+    if line is None or line.get("type", "NONE") == "NONE":
+        return None
+    try:
+        millimetres: float | None = float((line.get("width") or "").replace("mm", "").strip())
+    except ValueError:
+        millimetres = None
+    if millimetres is not None and not math.isfinite(millimetres):
+        millimetres = None
+    width = None if millimetres is None else round(millimetres * 7200 / 25.4)
+    return ColumnSeparator(line.get("type", "NONE"), millimetres, width, line.get("color") or "#000000")
 
 
 def _in_sub_list(element: Any) -> bool:
@@ -3223,7 +3261,8 @@ def _paginate(measure: _Measure, section: Any, page: _Page, notes: _NoteShape, m
     trace = _frame_trace(paginator, page.columns)
     return _SectionLayout(page.columns, frames, paginator.out, paginator.counts, end=end,
                           noted=bool(paginator.page_notes[1]), body=page.body, width=page.column_width,
-                          paper=page if measure.trace else None, details=paginator.details,
+                          paper=replace(page, separator=_column_separator(_first_columns(section)))
+                          if measure.trace else None, details=paginator.details,
                           placement_frames=(trace,) if trace is not None else ())
 
 
@@ -3354,9 +3393,10 @@ def _lay_areas(measure: _Measure, section: Any, page: _Page, notes: _NoteShape,
         if paginator.details is not None:
             detail_rows.extend(paginator.details)
             area_tops.extend(top if frame // count == 0 else 0 for frame, _ in out)
+            lined = replace(area, separator=_column_separator(settings))
             for local_page in range(last + 1):
                 page_areas.setdefault(page_index + local_page, []).append(
-                    _column_area(area, top if local_page == 0 else 0))
+                    _column_area(lined, top if local_page == 0 else 0))
             trace = _frame_trace(paginator, count, page_index, top)
             if trace is not None:
                 placement_frames.append(trace)
@@ -3430,7 +3470,7 @@ def _assemble(layouts: list[_SectionLayout]) -> PageEstimate:
 def _column_area(paper: _Page, top: int = 0) -> ColumnArea:
     widths = paper.widths or (paper.column_width,) * paper.columns
     gaps = paper.gaps if paper.unequal else (paper.gap,) * (len(widths) - 1)
-    return ColumnArea(paper.top + top, widths, None if paper.unequal else paper.gap, gaps)
+    return ColumnArea(paper.top + top, widths, None if paper.unequal else paper.gap, gaps, paper.separator)
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,7 @@ from pathlib import Path
 from lxml import etree
 
 from hwpx import HwpxDocument
-from hwpx.experimental import estimate_layout, estimate_pages
+from hwpx.experimental import ColumnSeparator, estimate_layout, estimate_pages
 from hwpx.layout.line_cache import write_line_caches
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
@@ -1087,6 +1087,31 @@ def test_columns_give_the_gap_after_each_column_as_their_widths_are_laid_out():
     assert (placed.column, line.position.column) == (1, 1)
     # the second column starts past the first and the gap after it: an object set as a character stands there
     assert placed.x == page.body[0] + area.widths[0] + area.gaps[0] + 0 and placed.unavailable == ()
+
+
+def test_columns_give_the_line_drawn_between_them():
+    doc = HwpxDocument.new(empty_first_line=True)
+    doc.page.set_columns(2, same_gap=1400)
+    plain, = estimate_layout(doc).pages[0].column_areas
+    assert plain.separator is None  # no hp:colLine
+
+    doc = HwpxDocument.new(empty_first_line=True)
+    doc.page.set_columns(2, same_gap=1400, separator_type="DASH", separator_width_mm=0.4, separator_color="#FF0000")
+    doc.add_paragraph("단 정의가 바뀌기 전의 글")
+    later = doc.add_paragraph("세 단으로 바뀐 뒤의 글")
+    doc.page.set_columns(3, same_gap=1000, paragraph=later)
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    first, second = layout.pages[0].column_areas
+    assert first.separator == ColumnSeparator("DASH", 0.4, round(0.4 * 7200 / 25.4), "#FF0000")
+    assert second.separator is None and len(second.widths) == 3  # its own definition draws none
+
+    line = next(doc.sections[0].element.iter(f"{HP}colLine"))
+    line.set("type", "NONE")
+    assert estimate_layout(doc).pages[0].column_areas[0].separator is None
+    line.set("type", "SOLID")
+    line.set("width", "thin")
+    assert estimate_layout(doc).pages[0].column_areas[0].separator == ColumnSeparator("SOLID", None, None, "#FF0000")
 
 
 def _head(doc, paragraph):
