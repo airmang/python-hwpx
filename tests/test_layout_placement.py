@@ -791,7 +791,7 @@ def test_an_object_among_the_saved_lines_of_a_cell_stands_on_its_cell_line():
     # a hanging indent: the saved first line has the cell's whole room (in whole layout units), the layout's too
     shape = next(item for item in doc.parts.headers[0].element.iter(f"{HH}paraPr")
                  if item.get("id") == paragraph.element.get("paraPrIDRef"))
-    for intent in shape.iter(f"{{http://www.hancom.co.kr/hwpml/2011/core}}intent"):
+    for intent in shape.iter("{http://www.hancom.co.kr/hwpml/2011/core}intent"):
         intent.set("value", "-2000")
     inner = cell.width - 2 * line.x
     _saved_lines(paragraph.element, (0,), (1000,), width=inner - inner % 4)
