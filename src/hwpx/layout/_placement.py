@@ -36,7 +36,7 @@ from .pages import (
     AreaPlacement, EstimatedLine, LabelPlacement, LayoutEstimate, LinePlacement, ObjectPlacement, PageEstimate,
     PagePlacement,
     ParagraphPlacement, TableCaptionPlacement, TableCellLinePlacement, TableCellPlacement, TablePlacement,
-    TableRowPlacement, _AreaFrame, _FrameTrace, _LineDetail, _ObjectFrame, _Page, _RunPositions, _SectionLayout,
+    TableRowPlacement, TabPlacement, _AreaFrame, _FrameTrace, _LineDetail, _ObjectFrame, _Page, _RunPositions, _SectionLayout,
     _TableCapture, _column_area, _object_margin, _run_positions, _tab_stop,
 )
 
@@ -56,6 +56,7 @@ def _placement_result(
     body_sources = [source.findall(f"{HP}p") for source in sources]
     line_groups = iter(estimate.lines)
     labels = _Labels(measure) if measure is not None else None
+    tabs = _Tabs(measure) if measure is not None else None
     for section, first, layout in sections:
         paper = layout.paper
         details = layout.details
@@ -85,6 +86,9 @@ def _placement_result(
                 line_index += 1
             if lines and labels is not None:
                 lines[0] = labels.first_line(body_sources[section][index], lines[0])
+            if tabs is not None and any(line.text and "\t" in line.text for line in lines):
+                stop = _part_tab_stop(body_sources[section], index)
+                lines = [tabs.line(body_sources[section][index], line, _body_room(pages), stop) for line in lines]
             paragraphs.append(ParagraphPlacement(section, index, tuple(lines)))
     tables: list[TablePlacement] = []
     table_sources: list[Any] = []
@@ -132,6 +136,8 @@ def _placement_result(
                         result = TablePlacement(*address, (), unavailable=(_LEFT_BEHIND,))
                 if labels is not None and result.rows:
                     result = _labelled_cells(result, table, labels)
+                if tabs is not None and result.rows:
+                    result = _tabbed_cells(result, table, tabs, _part_tab_stop(source, index))
                 by_source[table] = result
                 tables.append(result)
                 table_sources.append(table)
@@ -152,12 +158,17 @@ def _placement_result(
                                            else (placed.width, placed.height))  # type: ignore[arg-type]
                     if labels is not None:
                         held = _labelled_lines(held, obj.findall(f"{HP}drawText/{HP}subList/{HP}p"), labels)
+                    if tabs is not None and any(line.text and "\t" in line.text for line in held):
+                        inside = _box_room(obj, None if None in (placed.width, placed.height)
+                                           else (placed.width, placed.height))  # type: ignore[arg-type]
+                        held = tabs.lines(held, obj.findall(f"{HP}drawText/{HP}subList/{HP}p"),
+                                          _fixed_room(inside), measure.tab_stop)
                     placed = replace(placed, lines=held, unavailable=(*placed.unavailable, *why))
                 object_places[obj] = placed
                 objects.append(placed)
     # headers and footers after the tables: one in a table cell starts on the page of the part of its row showing it
     running, numbers_by_page = _running_areas(body_sources, paragraph_origins, pages, papers, measure, by_source,
-                                              labels)
+                                              labels, tabs)
     pages[:] = [replace(page, number=number) for page, number in zip(pages, numbers_by_page)]
     held_by: dict[Any, list[TablePlacement]] = {}
     for shown, _ in running.values():
@@ -179,7 +190,7 @@ def _placement_result(
                                                         for held in area.findall(f"{HP}subList/{HP}p"))
                     areas.extend(replace(placed, unavailable=(*placed.unavailable, _NOTE_LABEL)) if headed and
                                  placed.lines else placed
-                                 for placed in (_area_placement(section, index, ordinal, *capture, pages)
+                                 for placed in (_note_tabs(_area_placement(section, index, ordinal, *capture, pages))
                                                 for capture in found))
                 elif area.getparent() is not None and _local(area.getparent()) == "secPr":
                     areas.append(AreaPlacement(section, index, ordinal, _local(area), unavailable=(_STORY_COPY,)))
@@ -206,8 +217,8 @@ _Shown = list[tuple[int, tuple[int, int, int, int], tuple[LinePlacement, ...], t
 
 def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], EstimatedLine],
                    pages: list[PagePlacement], papers: list[_Page], measure: _Measure | None = None,
-                   tables: dict[Any, TablePlacement] | None = None, labels: _Labels | None = None
-                   ) -> tuple[dict[Any, tuple[_Shown, tuple[str, ...]]], list[int | None]]:
+                   tables: dict[Any, TablePlacement] | None = None, labels: _Labels | None = None,
+                   tabs: _Tabs | None = None) -> tuple[dict[Any, tuple[_Shown, tuple[str, ...]]], list[int | None]]:
     """Each header and footer control of the body's paragraphs (in a run of the paragraph or in one of its table
     cells) -> the pages it is drawn on, with its room there (x, top, width, height on the paper) and its lines (see
     :func:`_running_lines`), and what is not given; and the number Hancom prints on each page (see
@@ -288,8 +299,13 @@ def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], Esti
                     if labels is not None:
                         lines = tuple(labels.first_line(held[number], line) if not order and number < len(held)
                                       else line for line, (_, _, _, number, order) in zip(lines, placed))
+                    stop = _part_tab_stop(paragraphs, index)
+                    if tabs is not None and any(line.text and "\t" in line.text for line in lines):
+                        lines = tuple(tabs.line(held[number], line, _fixed_room((0, paper.text_width)), stop)
+                                      if number < len(held) else line
+                                      for line, (_, _, _, number, _) in zip(lines, placed))
                     tables = _area_tables(section, index, paragraphs[index], standing[paper.text_width, tall], page,
-                                          top, labels)
+                                          top, labels, tabs, stop)
                     if why == _HOLDS.format(kind=kind) and tables and all(
                             _complete(table) and _table_alone(source.getparent().getparent().findall(f"{HP}run"))
                             is source for source, table in tables) and not any(
@@ -650,7 +666,8 @@ def _running_tables(measure: _Measure, node: Any, kind: str, width: int, tall: i
 
 
 def _area_tables(section: int, index: int, paragraph: Any, held: list[_HeldTable], page: int, room_top: int,
-                 labels: _Labels | None) -> tuple[tuple[Any, TablePlacement], ...]:
+                 labels: _Labels | None, tabs: _Tabs | None = None, tab_stop: int = _DEFAULT_TAB_STOP
+                 ) -> tuple[tuple[Any, TablePlacement], ...]:
     """The tables of a header or footer standing in body paragraph *index* of *section* (*paragraph*), as
     :func:`_running_tables` finds them (*held*), on *page*, whose room for it starts *room_top* down the paper:
     each with its rows there (their tops on the paper, their left edge right of the room's)."""
@@ -675,6 +692,8 @@ def _area_tables(section: int, index: int, paragraph: Any, held: list[_HeldTable
         placed = replace(placed, moved=None)  # it stands on its line in the header or footer, which does not move
         if labels is not None and placed.rows:
             placed = _labelled_cells(placed, table, labels)
+        if tabs is not None and placed.rows:
+            placed = _tabbed_cells(placed, table, tabs, tab_stop)
         result.append((table, placed))
     return tuple(result)
 
@@ -923,12 +942,13 @@ def _object_line_content(measure: _Measure, paragraph: Any, runs: list[Any], wid
 
 
 def _pens(text: str, sizes: list[int], looks: list[Any], advances: dict[int, float], style: Any, start: int,
-          stop: int, origin: float, room: float) -> list[float]:
+          stop: int, origin: float, room: float, reached: dict[int, tuple[int, str]] | None = None) -> list[float]:
     """Placement tracing only: how far right of its line's start each character of ``text[start:stop]`` begins,
     then how far the last one reaches, added up as :func:`~hwpx.form_fit.measure.hancom_line_starts` adds the
     line up when it breaks it: each character's advance at its own size and style and the automatic spacing after
     it (none after a space), a fixed width as given, a tab to where it reaches from *origin* (the line's start
-    from the column's left edge) on a line *room* wide."""
+    from the column's left edge) on a line *room* wide. *reached*, when given, gets the stop each tab reaching
+    one reaches, by its place (see :func:`~hwpx.form_fit.measure.tab_reach`)."""
 
     def after(tab: int, point: bool) -> float:  # the text after a tab up to the next tab or the line's end
         stop_at = min((found for found in (text.find("\t", tab + 1), text.find("\n", tab + 1)) if found >= 0),
@@ -945,7 +965,10 @@ def _pens(text: str, sizes: list[int], looks: list[Any], advances: dict[int, flo
         glyph, size, look = text[at], sizes[at] / 100, looks[at]
         fixed = advances.get(at)
         if fixed is None and glyph == "\t" and (style.tab_stop or style.tab_stops or style.auto_tab_right):
-            fixed = tab_reach(origin + used, origin + room, style, lambda point, at=at: after(at, point))
+            chosen: list[tuple[int, str]] = []
+            fixed = tab_reach(origin + used, origin + room, style, lambda point, at=at: after(at, point), chosen)
+            if reached is not None and chosen:
+                reached[at] = chosen[0]
         advance = char_advance(glyph, size, look) if fixed is None else fixed
         if glyph in _HANGING_SPACES:
             used += advance
@@ -980,7 +1003,7 @@ def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[Any, ..
     measured = _measured_text(measure, paragraph)
     if measured is None:
         return "object set as a character: its paragraph's text is not measured with Hancom's text positions"
-    text, sizes, looks, advances, positions, places, style = measured
+    text, positions, places = measured[0], measured[4], measured[5]
     at = places.get(obj)
     if at is None:
         return "object set as a character: its place in its paragraph's text is not found"
@@ -994,8 +1017,39 @@ def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[Any, ..
                 "object set as a character: the lines of its paragraph keep no text ranges")
     else:
         start, stop = bisect_left(positions, line.text_start), bisect_left(positions, line.text_end)
+    frame = _line_pens(measure, paragraph, line, measured, start, stop, whole, "object set as a character")
+    if isinstance(frame, str):
+        return frame
+    left, pens, shift, spread = frame
+    pen = pens[at - start]
+    if spread and pen:
+        return _SPREAD.format(subject="object set as a character")
+    return left + pen + shift + _object_margin(obj, "left"), line
+
+
+#: Why something on a line Hancom spreads across its room does not stand where the layout measures it.
+_SPREAD = ("{subject} on a line spread across its room (justified but the last, or distributed): where Hancom adds "
+           "the room is not laid out")
+
+
+def _line_pens(measure: _Measure, paragraph: Any, line: Any, measured: tuple[Any, ...], start: int, stop: int,
+               whole: Callable[[Any], tuple[float, float] | None], subject: str,
+               reached: dict[int, tuple[int, str]] | None = None) -> tuple[float, list[float], float, bool] | str:
+    """Placement tracing only: *line* of *paragraph*, holding ``text[start:stop]`` of its *measured* text (see
+    :func:`_measured_text`), as the layout lays it across: where its text starts from the edge its *x* is
+    measured from, how far right of that each of its characters begins and the last one reaches (:func:`_pens`,
+    filling *reached*), how far the paragraph's alignment moves it, and whether Hancom spreads it across its room;
+    else why that is not laid out, said of *subject*. *whole* is as for :func:`_x_on_line`.
+
+    The line starts where the layout starts it (a line Hancom saved in a paragraph with an indent or a label: as
+    the layout indents its lines when the line has the paragraph's whole room). Set left, or on the last line set
+    justified, the alignment does not move it; centred or to the end, by half or all of the room its characters
+    leave. A line set centred or right that ends in spaces or in automatic spacing does not say where it stands,
+    nor does one whose spaces shrink for its characters to fit, nor a paragraph pressed onto one line."""
+
+    text, sizes, looks, _, _, _, style = measured
     if line.x is None or line.width is None:
-        return "object set as a character: its line has no horizontal origin or width"
+        return f"{subject}: its line has no horizontal origin or width"
     first = start == 0
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     left, room = line.x, line.width
@@ -1003,35 +1057,33 @@ def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[Any, ..
         area = whole(line)  # (Hancom saves a cell's lines in whole layout units, a little narrower than the cell)
         inner = None if area is None else area[1] - shape.left - shape.right
         if area is None or inner is None or left - area[0] != shape.left or not 0 <= inner - room < _LAYOUT_UNIT:
-            return ("object set as a character on a saved line of an indented or labelled paragraph not as wide as "
-                    "the paragraph: where the line's text starts is not laid out")
+            return (f"{subject} on a saved line of an indented or labelled paragraph not as wide as the paragraph: "
+                    "where the line's text starts is not laid out")
         room = _indented(inner, shape, style)[0 if first else 1]
         left = area[0] + area[1] - shape.right - room
     if room >= _NO_WRAP:
-        return "object set as a character in a paragraph pressed onto one line: where it stands is not laid out"
-    pens = _pens(text, sizes, looks, advances, style, start, stop, _line_origin(style, first), room)
+        return f"{subject} in a paragraph pressed onto one line: where it stands is not laid out"
+    pens = _pens(text, sizes, looks, measured[3], style, start, stop, _line_origin(style, first), room, reached)
     end = stop
     while end > start and text[end - 1] == "\n":
         end -= 1
     content = end
     while content > start and text[content - 1] in _HANGING_SPACES:
         content -= 1
-    pen, used = pens[at - start], pens[content - start]
+    used = pens[content - start]
     if used > room:
-        return "object set as a character on a line whose spaces shrink to fit it: where it stands is not laid out"
+        return f"{subject} on a line whose spaces shrink to fit it: where it stands is not laid out"
     align = measure.align(paragraph.get("paraPrIDRef"))
-    if align in ("JUSTIFY", "DISTRIBUTE", "DISTRIBUTE_SPACE") and pen and (align != "JUSTIFY" or stop < len(text)):
-        return ("object set as a character on a line spread across its room (justified but the last, or "
-                "distributed): where Hancom adds the room is not laid out")
+    spread = align in ("JUSTIFY", "DISTRIBUTE", "DISTRIBUTE_SPACE") and (align != "JUSTIFY" or stop < len(text))
     shift = 0.0
     if align in ("CENTER", "RIGHT"):
         gap = content < len(text) and text[content] != "\n" and auto_space_gap(
             text[content - 1], text[content], sizes[content - 1] / 100, style, looks[content - 1])
         if content < end or gap:
-            return ("object set as a character on a line set centred or right that ends in spaces or automatic "
-                    "spacing: whether Hancom counts them is not laid out")
+            return (f"{subject} on a line set centred or right that ends in spaces or automatic spacing: whether "
+                    "Hancom counts them is not laid out")
         shift = (room - used) / (2 if align == "CENTER" else 1)
-    return left + pen + shift + _object_margin(obj, "left"), line
+    return left, pens, shift, spread
 
 
 def _group_member(placed: ObjectPlacement, obj: Any, others: dict[Any, ObjectPlacement]) -> ObjectPlacement:
@@ -1651,6 +1703,163 @@ class _Labels:
 
 #: A note holding a paragraph with a bullet or number: its lines are not matched to their paragraphs.
 _NOTE_LABEL = "a bullet or number in a note: its label is not placed"
+#: A tab on a line of a note, whose lines are not matched to their paragraphs.
+_NOTE_TAB = "a tab in a note: its line is not matched to its paragraph, so where the tab reaches is not laid out"
+
+
+#: Where a line's room starts from the edge its x is measured from, and how wide it is (see :func:`_x_on_line`).
+_Whole = Callable[[Any], tuple[float, float] | None]
+
+
+class _Tabs:
+    """Placement tracing only: where each tab of a line reaches (:class:`~hwpx.layout.pages.TabPlacement`), as the
+    layout measures the line when it breaks it: past the characters before it on its line (:func:`_line_pens`, the
+    tab reaching the stop :func:`~hwpx.form_fit.measure.tab_reach` finds for it), moved as the paragraph's alignment
+    moves the line. A line Hancom spreads across its room (justified but its paragraph's last, or distributed)
+    does not say where its tabs reach, nor does any line :func:`_line_pens` does not lay across."""
+
+    def __init__(self, measure: _Measure) -> None:
+        self.measure = measure
+        self.texts: dict[tuple[Any, int], Any] = {}  # (paragraph, default tab stops) -> its measured text
+        self.leaders: dict[str, dict[tuple[int, str], str]] = {}  # paragraph shape -> its stops' fills
+
+    def line(self, paragraph: Any, line: Any, whole: _Whole, tab_stop: int) -> Any:
+        """*line* (a :class:`~hwpx.layout.pages.LinePlacement` or ``TableCellLinePlacement``) of *paragraph*, laid
+        out with default tab stops *tab_stop* apart, with its tabs; unchanged for a line without one in its text."""
+
+        if not line.text or "\t" not in line.text:
+            return line
+        kept, self.measure.tab_stop = self.measure.tab_stop, tab_stop
+        try:
+            found = self._places(paragraph, line, whole)
+        except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+            found = "tab not measured"
+        finally:
+            self.measure.tab_stop = kept
+        if isinstance(found, str):
+            found = (TabPlacement(None, unavailable=(found,)),) * line.text.count("\t")
+        return replace(line, tabs=found)
+
+    def lines(self, lines: tuple[Any, ...], paragraphs: list[Any], whole: _Whole, tab_stop: int) -> tuple[Any, ...]:
+        """*lines* (a cell's or a text box's: ``TableCellLinePlacement``), each with its tabs."""
+
+        return tuple(self.line(paragraphs[line.paragraph], line, whole, tab_stop)
+                     if line.paragraph < len(paragraphs) else line for line in lines)
+
+    def _places(self, paragraph: Any, line: Any, whole: _Whole) -> tuple[TabPlacement, ...] | str:
+        key = paragraph, self.measure.tab_stop
+        if key not in self.texts:
+            self.texts[key] = _measured_text(self.measure, paragraph)
+        measured = self.texts[key]
+        if measured is None:
+            return "tab: its paragraph's text is not measured with Hancom's text positions"
+        text, positions = measured[0], measured[4]
+        if line.text_start is None or line.text_end is None:
+            return "tab: its line keeps no text range"
+        start, stop = bisect_left(positions, line.text_start), bisect_left(positions, line.text_end)
+        if text[start:stop].count("\t") != line.text.count("\t"):
+            return "tab: the tabs of its line are not found in its paragraph's text as the layout measures it"
+        reached: dict[int, tuple[int, str]] = {}
+        frame = _line_pens(self.measure, paragraph, line, measured, start, stop, whole, "tab", reached)
+        if isinstance(frame, str):
+            return frame
+        left, pens, shift, spread = frame
+        if spread:
+            return _SPREAD.format(subject="tab")
+        leaders = self._leaders(paragraph.get("paraPrIDRef") or "")
+        places = []
+        for at in range(start, stop):
+            if text[at] != "\t":
+                continue
+            stop_at = reached.get(at)
+            kind = "NONE" if stop_at is None else stop_at[1]
+            leader = "NONE" if stop_at is None else leaders.get(stop_at, "NONE")
+            places.append(TabPlacement(left + pens[at + 1 - start] + shift, left + pens[at - start] + shift, kind,
+                                       leader))
+        return tuple(places)
+
+    def _leaders(self, para_pr: str) -> dict[tuple[int, str], str]:
+        """The fill of each of the paragraph shape's own tab stops, by ``(position, kind)`` as the layout reads
+        them (the first item where two say the same)."""
+
+        if para_pr not in self.leaders:
+            found: dict[tuple[int, str], str] = {}
+            root = self.measure._root
+            shape = root.paragraph_property(para_pr)
+            tabs = root.tab_property(getattr(shape, "tab_pr_id_ref", None)) if shape is not None else None
+            for item in getattr(tabs, "tab_stops", None) or ():
+                found.setdefault((int(item.pos), str(item.type or "LEFT").upper()), str(item.leader or "NONE"))
+            self.leaders[para_pr] = found
+        return self.leaders[para_pr]
+
+
+def _fixed_room(room: tuple[float, float] | None) -> _Whole:
+    """The room of every line of a cell, a text box, a header or a footer: *room*, whatever the line."""
+
+    return lambda _: room
+
+
+def _body_room(pages: list[PagePlacement]) -> _Whole:
+    """Where the room of a body line starts from its column's left edge, and how wide it is: its column's."""
+
+    def whole(line: Any) -> tuple[float, float] | None:
+        if not 0 <= line.position.page < len(pages):
+            return None
+        column = line.position.column
+        area = next((area for area in reversed(pages[line.position.page].column_areas) if area.top <= line.top),
+                    None)
+        return (0, area.widths[column]) if area is not None and column < len(area.widths) else None
+
+    return whole
+
+
+def _box_room(obj: Any, size: tuple[int, int] | None) -> tuple[float, float] | None:
+    """Where the room of the text a rectangle holds starts from the box's left edge, and how wide it is, as
+    :func:`_box_lines` lays its lines: inside its text margins, across the width it lays them at."""
+
+    box = obj.find(f"{HP}drawText")
+    margin = box.find(f"{HP}textMargin") if box is not None else None
+    left, right = (0, 0) if margin is None else (int(margin.get("left", 0)), int(margin.get("right", 0)))
+    if box is None or obj.find(f"{HP}sz") is None and size is None:
+        return None
+    width = size[0] if obj.find(f"{HP}sz") is None and size is not None \
+        else int(box.get("lastWidth", 0)) or int(obj.find(f"{HP}sz").get("width", 0))
+    return left, width - left - right
+
+
+def _tabbed_cells(placed: TablePlacement, table: Any, tabs: _Tabs, tab_stop: int) -> TablePlacement:
+    """*placed*, each line it shows with its tabs, a cell's lines measured from the cell's left edge (its room
+    past its left margin, as the layout lays its paragraphs)."""
+
+    cells = table.findall(f"{HP}tr/{HP}tc")
+    rows = []
+    for row in placed.rows:
+        parts = []
+        for part in row.cells:
+            source = cells[part.source_index] if part.source_index is not None \
+                and part.source_index < len(cells) else None
+            if source is not None and any(line.text and "\t" in line.text
+                                          for line in (*part.lines, *part.lines_with_tables)):
+                held = source.findall(f"{HP}subList/{HP}p")
+                margins, size = cell_margins_of(source, table), source.find(f"{HP}cellSz")
+                inside = None if margins is None or size is None else (
+                    margins.left, int(size.get("width", 0)) - margins.left - margins.right)
+                room = _fixed_room(inside)
+                part = replace(part, lines=tabs.lines(part.lines, held, room, tab_stop),
+                               lines_with_tables=tabs.lines(part.lines_with_tables, held, room, tab_stop))
+            parts.append(part)
+        rows.append(replace(row, cells=tuple(parts)))
+    return replace(placed, rows=tuple(rows))
+
+
+def _note_tabs(placed: AreaPlacement) -> AreaPlacement:
+    """*placed*, a note, each tab of its lines without a place: they are not matched to their paragraphs."""
+
+    if not any(line.text and "\t" in line.text for line in placed.lines):
+        return placed
+    return replace(placed, lines=tuple(
+        replace(line, tabs=(TabPlacement(None, unavailable=(_NOTE_TAB,)),) * line.text.count("\t"))
+        if line.text and "\t" in line.text else line for line in placed.lines))
 
 
 def _labelled_lines(lines: tuple[TableCellLinePlacement, ...], paragraphs: list[Any],

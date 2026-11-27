@@ -1799,10 +1799,12 @@ def _tab_advance(x: float, stop: int) -> float:
     return (math.floor(x / stop) + 1) * stop - x
 
 
-def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], float]) -> float | None:
+def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], float],
+              chosen: list[tuple[int, str]] | None = None) -> float | None:
     """How far a tab at *x* reaches on a line ending at *right* (both from the column's left edge), or None
     when it is laid out as a glyph. *after* gives the width of the text that follows the tab up to the next
-    tab or the end, or with True up to its last full stop (all of it when it has none).
+    tab or the end, or with True up to its last full stop (all of it when it has none). *chosen*, when given,
+    gets the stop the tab reaches, ``(position, kind)``, a default stop's kind ``DEFAULT``.
 
     The paragraph's own stops come first, the first one past *x* that the text after the tab can take: a
     left stop starts the text there, a right stop ends it there, a centre stop centres it there and a
@@ -1832,11 +1834,15 @@ def tab_reach(x: float, right: float, style: TextStyle, after: Callable[[bool], 
         if kind != "LEFT" or passed:
             start = min(start, right - after(False))
         if start >= x:
+            if chosen is not None:
+                chosen.append((position, kind))
             return start - x
         passed = True
     if not style.tab_stop:
         return None
     reach = _tab_advance(x, style.tab_stop)
+    if chosen is not None:
+        chosen.append((round(x + reach), "DEFAULT"))
     # past a stop that could not take the text, a default stop that leaves it no room gives the tab none
     return 0.0 if passed and x + reach + after(False) > right else reach
 

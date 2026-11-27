@@ -53,7 +53,7 @@ def test_the_public_names_stay_in_pages() -> None:
         "EstimatedLine", "PageEstimate", "estimate_pages",
         "ColumnArea", "PagePlacement", "LinePlacement", "ParagraphPlacement", "LayoutEstimate", "estimate_layout",
         "TablePlacement", "TableRowPlacement", "TableCellPlacement", "TableCellLinePlacement", "TableCaptionPlacement",
-        "ObjectPlacement", "AreaPlacement", "LabelPlacement", "ColumnSeparator",
+        "ObjectPlacement", "AreaPlacement", "LabelPlacement", "ColumnSeparator", "TabPlacement",
     ]
     assert {getattr(pages, name).__module__ for name in pages.__all__} == {"hwpx.layout.pages"}
     from hwpx import experimental

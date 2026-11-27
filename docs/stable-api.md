@@ -267,6 +267,9 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   엔진 계산(`engine`)을 구분한다. 줄의 누락 값은 `unavailable`에 사유가 들어 있다.
   `LinePlacement.runs`는 해당 줄의 문자 모양 ID와 텍스트를 원래 순서로 제공한다.
   번호·글머리표 문단의 첫 줄은 `label`(`LabelPlacement`: 글, 글자 모양 참조, 줄의 x와 같은 기준의 상자 x·폭)을 싣는다.
+  줄(본문·칸·글상자·머리말·꼬리말)의 `tabs`는 그 줄 글의 탭마다 `TabPlacement`(탭 뒤 글이 시작하는 `x`, 탭이 시작하는
+  `start` — 둘 다 줄의 x와 같은 기준, 이른 탭 자리의 종류 `stop`, 채움 `leader`)를 글 순서대로 싣는다. 엔진이 재지 못한
+  탭은 `x`가 `None`이고 `unavailable`에 사유가 있다(양쪽 정렬로 퍼지는 줄 등).
   `ColumnArea.gaps`는 단마다 그 뒤의 간격이다(너비가 다른 단 포함). `ColumnArea.separator`(`ColumnSeparator`: 종류,
   굵기 mm·HWPUNIT, 색)는 단 사이에 긋는 선이고, 선의 x는 `widths`·`gaps`로 구한 단 사이 간격의 가운데다.
   머리말·꼬리말의 `AreaPlacement.tables`는 그 영역이 그 쪽에 지닌 표의 `TablePlacement`다(행 `top`은 종이 기준, `x`는 영역 왼쪽 끝 기준).

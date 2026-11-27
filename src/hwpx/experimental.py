@@ -49,6 +49,7 @@ from .layout.pages import (
     TableCellPlacement,
     TablePlacement,
     TableRowPlacement,
+    TabPlacement,
     estimate_layout,
     estimate_pages,
 )
@@ -72,6 +73,7 @@ __all__ = [
     "AreaPlacement",
     "LabelPlacement",
     "ColumnSeparator",
+    "TabPlacement",
     "EditPlan",
     "PlanReport",
     "PlanValidationError",

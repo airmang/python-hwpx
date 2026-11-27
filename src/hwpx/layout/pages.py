@@ -257,7 +257,7 @@ __all__ = [
     "EstimatedLine", "PageEstimate", "estimate_pages",
     "ColumnArea", "PagePlacement", "LinePlacement", "ParagraphPlacement", "LayoutEstimate", "estimate_layout",
     "TablePlacement", "TableRowPlacement", "TableCellPlacement", "TableCellLinePlacement", "TableCaptionPlacement",
-    "ObjectPlacement", "AreaPlacement", "LabelPlacement", "ColumnSeparator",
+    "ObjectPlacement", "AreaPlacement", "LabelPlacement", "ColumnSeparator", "TabPlacement",
 ]
 
 
@@ -352,11 +352,31 @@ class LabelPlacement:
 
 
 @dataclass(frozen=True)
+class TabPlacement:
+    """A tab of a line (``hp:tab``) as the layout measures the line when it breaks it: *x* where the text after
+    it starts, *start* where the tab starts (where the layout ends the text before it), both from the edge the
+    line's *x* is measured from (a body line's column, a cell line's cell, a text box line's box, a header or
+    footer line's room), the line's alignment moving them as it moves the line. *stop* is the stop it reaches:
+    ``LEFT``, ``RIGHT``, ``CENTER`` or ``DECIMAL`` for one of the paragraph's own stops or an automatic one
+    (``hh:tabPr@autoTabLeft``/``autoTabRight``), ``DEFAULT`` for a default stop, ``NONE`` for a tab laid out as
+    a character of its own width; *leader* the fill Hancom draws across it, as its ``hh:tabItem@leader`` is
+    written (``NONE`` for a default or an automatic stop, which have no item). A tab the layout does not place
+    keeps ``None`` and says why in *unavailable*."""
+
+    x: float | None
+    start: float | None = None
+    stop: str | None = None
+    leader: str | None = None
+    unavailable: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class LinePlacement:
     """A body line or line piece. *top* is paper-relative and *x* is column-relative (HWPUNIT).
 
     The half-open text range uses Hancom's text positions (as in the saved line cache).
-    A missing datum is accompanied by a reason in *unavailable*.
+    A missing datum is accompanied by a reason in *unavailable*. *tabs* holds a :class:`TabPlacement` for each
+    tab in *text*, in its order (``()`` for a line without one or without its text).
     """
 
     position: EstimatedLine
@@ -372,6 +392,7 @@ class LinePlacement:
     unavailable: tuple[str, ...]
     runs: tuple[tuple[str, str], ...] = ()  # (charPrIDRef, text) in original run order
     label: LabelPlacement | None = None  # a paragraph's first line: the bullet or number drawn before it
+    tabs: tuple[TabPlacement, ...] = ()  # each tab in *text*: where the text after it starts
 
 
 @dataclass(frozen=True)
@@ -405,6 +426,7 @@ class TableCellLinePlacement:
     runs: tuple[tuple[str, str], ...] = ()
     tables: tuple[int, ...] = ()
     label: LabelPlacement | None = None  # as :attr:`LinePlacement.label`
+    tabs: tuple[TabPlacement, ...] = ()  # as :attr:`LinePlacement.tabs`, from the cell's (box's) left edge
 
 
 @dataclass(frozen=True)
