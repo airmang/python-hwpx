@@ -575,11 +575,13 @@ def estimate_layout(document: "HwpxDocument | bytes | str | os.PathLike[str]") -
     sizes: dict[Any, tuple[int | None, int]] = {}
     untraced: dict[Any, str] = {}
     lefts: dict[Any, tuple[int, bool]] = {}
+    measures: list[_Measure] = []
     estimate = _estimate(document, placements=placements, sources=sections, inline_tables=inline_tables,
-                         drawn_sizes=sizes, untraced_tables=untraced, table_x=lefts)
+                         drawn_sizes=sizes, untraced_tables=untraced, table_x=lefts, measures=measures)
     from ._placement import _placement_result  # reads the names defined here: imported once they all are
 
-    return _placement_result(estimate, placements, sections, inline_tables, sizes, untraced, lefts)
+    return _placement_result(estimate, placements, sections, inline_tables, sizes, untraced, lefts,
+                             measures[0] if measures else None)
 
 
 def _estimate(
@@ -590,9 +592,11 @@ def _estimate(
     drawn_sizes: dict[Any, tuple[int | None, int]] | None = None,
     untraced_tables: dict[Any, str] | None = None,
     table_x: dict[Any, tuple[int, bool]] | None = None,
+    measures: list[_Measure] | None = None,
 ) -> PageEstimate:
     """:func:`estimate_pages`; with *first_reason*, stop at the first section not followed (its reason the only
-    one given) instead of laying every section out to name them all."""
+    one given) instead of laying every section out to name them all. *measures* receives the measure the layout
+    used, for the placement to measure with it as the layout does."""
 
     root = getattr(_open(document), "_root")
     if not root.headers:  # the shapes every paragraph names live there
@@ -647,6 +651,8 @@ def _estimate(
         untraced_tables.update(measure.untraced_tables)
     if table_x is not None:
         table_x.update(measure.table_x)
+    if measures is not None:
+        measures.append(measure)
     return _assemble(layouts)
 
 

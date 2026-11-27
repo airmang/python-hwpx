@@ -699,18 +699,72 @@ def test_an_object_alone_on_its_line_has_its_rectangle():
     assert rectangle("RIGHT")[0] == room - 12000
 
 
-def test_an_object_among_text_keeps_its_line_and_says_what_is_not_laid_out():
-    doc = HwpxDocument.new(empty_first_line=True)
-    paragraph = doc.add_paragraph("도형보다 앞에 놓인 글 ")
-    doc.shapes.add_rectangle(6000, 5000, paragraph=paragraph, treat_as_char=True)
-    paragraph.add_run(" 도형 다음에 놓인 글")
+def _object_among(before, after="", horizontal=None, *, cached=None):
+    """A document whose last paragraph holds *before*, a 6000 x 5000 rectangle set as a character, then *after*,
+    aligned *horizontal* (the paragraph shape's own when None); *cached*: the saved lines' starts. Its layout."""
 
+    doc = HwpxDocument.new(empty_first_line=True)
+    paragraph = doc.add_paragraph(before)
+    doc.shapes.add_rectangle(6000, 5000, paragraph=paragraph, treat_as_char=True)
+    if after:
+        paragraph.add_run(after)
+    if horizontal is not None:
+        shape = next(item for item in doc.parts.headers[0].element.iter(f"{HH}paraPr")
+                     if item.get("id") == paragraph.element.get("paraPrIDRef"))
+        shape.find(f"{HH}align").set("horizontal", horizontal)
+    if cached is not None:
+        _saved_lines(paragraph.element, cached, width=estimate_layout(doc).pages[0].body[2])
     layout = estimate_layout(doc)
     assert layout.estimate == estimate_pages(doc)
-    placed, = layout.objects
-    line, = layout.paragraphs[-1].lines
-    assert (placed.page, placed.top, placed.x) == (0, line.top, None) and line.height == 5000
-    assert placed.unavailable == ("object set as a character: where it stands on its line is not laid out",)
+    return layout
+
+
+def test_an_object_among_text_stands_past_the_text_before_it_on_its_line():
+    left = estimate_layout(HwpxDocument.new()).pages[0].body[0]
+
+    def x(before, after="", horizontal="LEFT"):
+        layout = _object_among(before, after, horizontal)
+        placed, = layout.objects
+        line, = layout.paragraphs[-1].lines
+        assert (placed.page, placed.top, placed.width, placed.height) == (0, line.top, 6000, 5000)
+        assert line.height == 5000 and placed.unavailable == ()
+        return placed.x - left
+
+    assert x("") == 0
+    one = x("가가")
+    assert one > 0 and x("가가가가") == 2 * one  # past the characters before it, as the layout measures them
+    assert x("가가", " 가가", "JUSTIFY") == one  # its paragraph's last line: set as if left
+    room = estimate_layout(HwpxDocument.new()).pages[0].body[2]
+    centred, right = x("가가", "가가", "CENTER"), x("가가", "가가", "RIGHT")
+    assert abs((right - one) - 2 * (centred - one)) <= 1  # moved by the room the line leaves, or half of it
+    assert right - one == room - (2 * one + 6000)
+
+
+def test_an_object_among_text_says_why_its_line_does_not_place_it():
+    layout = _object_among("가가", " ", "CENTER")
+    assert layout.objects[0].x is None
+    assert layout.objects[0].unavailable == (
+        ("object set as a character on a line set centred or right that ends in spaces or automatic spacing: whether "
+         "Hancom counts them is not laid out"),)
+    assert _object_among("", "가가", "DISTRIBUTE").objects[0].x is not None  # at its line's start
+    spread, = _object_among("가가", "가가", "DISTRIBUTE").objects
+    assert spread.x is None and spread.unavailable == (
+        ("object set as a character on a line spread across its room (justified but the last, or distributed): "
+         "where Hancom adds the room is not laid out"),)
+
+
+def test_an_object_among_saved_lines_stands_past_the_text_before_it_on_its_own_line():
+    left = estimate_layout(HwpxDocument.new()).pages[0].body[0]
+    first = _object_among("가", "가", "LEFT").objects[0].x - left
+    # the lines as saved: two characters, then the third character, the object (8 places) and the last one
+    placed, = _object_among("가가가", "가", "LEFT", cached=(0, 2)).objects
+    lines = _object_among("가가가", "가", "LEFT", cached=(0, 2)).paragraphs[-1].lines
+    assert [line.source for line in lines] == ["cache", "cache"]
+    assert placed.x - left == first  # past the one character before it on the second line
+    assert placed.top is None and placed.unavailable == (
+        "object set as a character on a line taller than it: where it stands up and down the line is not laid out",)
+    spread, = _object_among("가가", "가", "JUSTIFY", cached=(0, 10)).objects  # on the first of two lines
+    assert spread.x is None and spread.unavailable[0].startswith("object set as a character on a line spread")
 
 
 def test_objects_held_by_a_cell_or_a_text_box_stand_on_its_page():

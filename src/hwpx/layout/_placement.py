@@ -13,19 +13,25 @@ from __future__ import annotations
 
 from bisect import bisect_left
 from dataclasses import replace
+from itertools import pairwise
 from typing import Any
 
+from ..form_fit.measure import (
+    _DEFAULT_TAB_STOP, _GLYPH_SPACE, _HANGING_SPACES, _TYPED_NO_BREAK_SPACE, _line_origin, auto_space_gap,
+    char_advance, tab_reach,
+)
 from ..oxml.namespaces import HP
 from ..oxml.table_sizes import _grid_extents_of
 from ._page_measure import (
-    _DRAWINGS, _CellLine, _CellSlice, _FlowTable, _LineContent, _Row, _RowPart, _cell_spacing, _floating, _local,
-    _page_break, _whole_rows,
+    _DRAWINGS, _NO_WRAP, _OBJECTS, _CellLine, _CellSlice, _FlowTable, _LineContent, _Measure, _Row, _RowPart,
+    _caption_beside, _cell_spacing, _drawn_height, _effect_room, _floating, _indented, _inline_content, _local,
+    _page_break, _shadow_drop, _text_size, _whole_rows,
 )
 from .pages import (
     AreaPlacement, EstimatedLine, LayoutEstimate, LinePlacement, ObjectPlacement, PageEstimate, PagePlacement,
     ParagraphPlacement, TableCaptionPlacement, TableCellLinePlacement, TableCellPlacement, TablePlacement,
     TableRowPlacement, _AreaFrame, _FrameTrace, _LineDetail, _ObjectFrame, _Page, _RunPositions, _SectionLayout,
-    _TableCapture, _column_area, _run_positions,
+    _TableCapture, _column_area, _object_margin, _run_positions, _tab_stop,
 )
 
 
@@ -33,6 +39,7 @@ def _placement_result(
     estimate: PageEstimate, sections: list[tuple[int, int, _SectionLayout]], sources: list[Any],
     inline_tables: dict[Any, _FlowTable], sizes: dict[Any, tuple[int | None, int]],
     untraced: dict[Any, str] | None = None, lefts: dict[Any, tuple[int, bool]] | None = None,
+    measure: _Measure | None = None,
 ) -> LayoutEstimate:
     pages: list[PagePlacement] = []
     papers: list[_Page] = []  # the page settings of each of them
@@ -76,6 +83,7 @@ def _placement_result(
     by_source: dict[Any, TablePlacement] = {}
     paragraph_origins = {(entry.section, entry.paragraph): entry.lines[0].position
                          for entry in paragraphs if entry.lines}
+    paragraph_lines = {(entry.section, entry.paragraph): entry.lines for entry in paragraphs}
     nested_places: dict[Any, list[tuple[int, int]]] = {}
     object_places: dict[Any, ObjectPlacement] = {}
     running = _running_areas(body_sources, paragraph_origins, pages, papers)
@@ -112,6 +120,10 @@ def _placement_result(
                 placed = _object_placement(section, index, ordinal, obj, sizes.get(obj), object_captures.get(obj), pages)
                 if placed.page is None:
                     placed = _held_object(placed, obj, object_places, by_source)
+                elif placed.x is None and placed.wrap == "AS_CHARACTER" and measure is not None \
+                        and obj.getparent() is not None and obj.getparent().getparent() is paragraph:
+                    placed = _among_text(placed, obj, measure, source, index, paragraph_lines.get((section, index), ()),
+                                         pages)
                 object_places[obj] = placed
                 objects.append(placed)
             for ordinal, area in enumerate(node for node in paragraph.iter() if _local(node) in _AREA_NAMES):
@@ -223,6 +235,195 @@ def _held_object(placed: ObjectPlacement, obj: Any, others: dict[Any, ObjectPlac
     return replace(placed, page=page, column=column, unavailable=(_OBJECT_HOLDERS[_local(holder)], *size))
 
 
+#: Why an object set as a character among text has no left edge (it keeps its line's page).
+_AMONG = "object set as a character: where it stands on its line is not laid out"
+#: Why one with its left edge has no top: its line is taller than it, and Hancom stands it on the text's baseline.
+_AMONG_TALL = ("object set as a character on a line taller than it: where it stands up and down the line is not "
+               "laid out")
+
+
+def _among_text(placed: ObjectPlacement, obj: Any, measure: _Measure, paragraphs: list[Any], index: int,
+                lines: tuple[LinePlacement, ...], pages: list[PagePlacement]) -> ObjectPlacement:
+    """*placed*, an object set as a character among the text of body paragraph *index* of *paragraphs* (its
+    section's), with its left edge on the line holding its text position (see :func:`_x_on_line`), or the reason
+    that line does not give it."""
+
+    rest = tuple(why for why in placed.unavailable if why != _AMONG)
+    measure.tab_stop = _part_tab_stop(paragraphs, index)
+    found = _x_on_line(obj, measure, paragraphs[index], lines, pages[placed.page], placed)
+    if isinstance(found, str):
+        return replace(placed, unavailable=(found, *rest))
+    x, line = found
+    origin = _column_origin(pages[placed.page], placed.column or 0, line.top)
+    if origin is None:
+        return replace(placed, unavailable=("object set as a character: its column's left edge is not measured",
+                                            *rest))
+    return replace(placed, x=int(origin + x), unavailable=(*(() if placed.top is not None else (_AMONG_TALL,)),
+                                                           *rest))
+
+
+def _part_tab_stop(paragraphs: list[Any], index: int) -> int:
+    """The default tab stops of the part of a section paragraph *index* is laid out in (see
+    :func:`~hwpx.layout.pages._section_parts`): those of the last paragraph up to it holding section settings."""
+
+    for paragraph in reversed(paragraphs[:index + 1]):
+        if paragraph.find(f"{HP}run/{HP}secPr") is not None:
+            return _tab_stop(paragraph) or _DEFAULT_TAB_STOP
+    return _DEFAULT_TAB_STOP
+
+
+def _measured_text(measure: _Measure, paragraph: Any) -> tuple[
+        str, list[int], list[Any], dict[int, float], list[int], dict[Any, int], Any] | None:
+    """Placement tracing only: the paragraph's text as the layout breaks it with objects set as characters among
+    it (:func:`~hwpx.layout._page_measure._inline_content`: each object, composed character, ruby text and shown
+    control one character of its own width), each character's size and style as the layout measures it, those
+    fixed widths by place, each character's Hancom text position, each object's place, and the paragraph's style.
+    ``None`` where its characters do not line up with Hancom's positions or are not measured so."""
+
+    runs = paragraph.findall(f"{HP}run")
+    if any(_local(child) == "switch" for run in runs for child in run):
+        return None
+    apart = tuple(child for run in runs for child in run if _local(child) in _OBJECTS and (
+        child.find(f"{HP}pos") is None or child.find(f"{HP}pos").get("treatAsChar") != "1"))
+    held: dict[int, Any] = {}
+    places: dict[Any, int] = {}
+    try:
+        text, sizes, looks, objects, marks = _inline_content(measure, paragraph, runs, None, apart, controls=held)
+        native = measure.native_positions(paragraph, controls=places)
+        style = measure.style(paragraph.get("paraPrIDRef"), _text_size(measure, runs, paragraph)[1], paragraph)
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return None
+    if native is None or style is None:
+        return None
+    characters = iter((position, value) for position, value in native[0] if value)
+    positions: list[int] = []
+    for at, glyph in enumerate(text):
+        if at in held:
+            place = places.get(held[at])
+            if place is None:
+                return None
+        else:
+            source = next(characters, None)
+            if source is None or source[1] != glyph.replace(_GLYPH_SPACE, "　").replace(
+                    _TYPED_NO_BREAK_SPACE, " "):
+                return None
+            place = source[0]
+        positions.append(place)
+    if next(characters, None) is not None or any(a > b for a, b in pairwise(positions)):
+        return None
+    advances ={at: float(width) for at, (width, _) in objects.items()}
+    advances.update((at, float(width)) for at, width in marks.items())
+    return (text, sizes, looks if len(set(looks)) > 1 else [style] * len(text), advances, positions,
+            {held[at]: at for at in held}, style)
+
+
+def _pens(text: str, sizes: list[int], looks: list[Any], advances: dict[int, float], style: Any, start: int,
+          stop: int, origin: float, room: float) -> list[float]:
+    """Placement tracing only: how far right of its line's start each character of ``text[start:stop]`` begins,
+    then how far the last one reaches, added up as :func:`~hwpx.form_fit.measure.hancom_line_starts` adds the
+    line up when it breaks it: each character's advance at its own size and style and the automatic spacing after
+    it (none after a space), a fixed width as given, a tab to where it reaches from *origin* (the line's start
+    from the column's left edge) on a line *room* wide."""
+
+    def after(tab: int, point: bool) -> float:  # the text after a tab up to the next tab or the line's end
+        stop_at = min((found for found in (text.find("\t", tab + 1), text.find("\n", tab + 1)) if found >= 0),
+                      default=len(text))
+        if point:
+            dot = text.rfind(".", tab + 1, stop_at)
+            stop_at = stop_at if dot < 0 else dot
+        return sum(advances[at] if at in advances else char_advance(text[at], sizes[at] / 100, looks[at])
+                   for at in range(tab + 1, stop_at))
+
+    used, pens = 0.0, []
+    for at in range(start, stop):
+        pens.append(used)
+        glyph, size, look = text[at], sizes[at] / 100, looks[at]
+        fixed = advances.get(at)
+        if fixed is None and glyph == "\t" and (style.tab_stop or style.tab_stops or style.auto_tab_right):
+            fixed = tab_reach(origin + used, origin + room, style, lambda point, at=at: after(at, point))
+        advance = char_advance(glyph, size, look) if fixed is None else fixed
+        if glyph in _HANGING_SPACES:
+            used += advance
+            continue
+        following = text[at + 1] if at + 1 < len(text) else "\n"
+        used += advance + (auto_space_gap(glyph, following, size, style, look) if following != "\n" else 0.0)
+    pens.append(used)
+    return pens
+
+
+def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[LinePlacement, ...], page: PagePlacement,
+               placed: ObjectPlacement) -> tuple[float, LinePlacement] | str:
+    """Placement tracing only: how far right of its column's left edge an object set as a character among text
+    starts (its left outer margin outside), on the line holding its text position, with that line; else why not.
+
+    The line starts where the layout starts it (a line Hancom saved in a paragraph with an indent or a label: as
+    the layout indents its lines when the line has the paragraph's whole room); the object stands past the
+    characters before it on that line, measured as the layout measures them (:func:`_pens`), moved as the
+    paragraph's alignment moves the line: not at all set left, or on the last line set justified; centred or to
+    the end by the room the line's characters leave. A line Hancom spreads (justified but its last, distributed)
+    does not say where it stands but at the line's start, nor does a line set centred or right that ends in spaces
+    or in automatic spacing, or one whose spaces shrink for its characters to fit. An object with a shadow, an
+    effect taking room or a caption beside it is not placed in its box."""
+
+    if _shadow_drop(obj) or _caption_beside(obj) or any(
+            _effect_room(obj, int(obj.find(f"{HP}sz").get("width", 0)), _drawn_height(obj, measure))):
+        return ("object set as a character with a shadow, an effect or a caption beside it: where it stands in "
+                "its box is not laid out")
+    measured = _measured_text(measure, paragraph)
+    if measured is None:
+        return "object set as a character: its paragraph's text is not measured with Hancom's text positions"
+    text, sizes, looks, advances, positions, places, style = measured
+    at = places.get(obj)
+    if at is None:
+        return "object set as a character: its place in its paragraph's text is not found"
+    line = next((line for line in lines if line.text_start is not None and line.text_end is not None
+                 and line.text_start <= positions[at] < line.text_end), None)
+    if line is None:
+        return "object set as a character: no line of its paragraph holds its text position"
+    if (line.position.page, line.position.column) != (placed.page, placed.column):
+        return "object set as a character: its line stands elsewhere than its frame"
+    if line.x is None or line.width is None:
+        return "object set as a character: its line has no horizontal origin or width"
+    start, stop = bisect_left(positions, line.text_start), bisect_left(positions, line.text_end)
+    first = line.text_start == 0
+    shape = measure.shape(paragraph.get("paraPrIDRef"))
+    left, room = line.x, line.width
+    if line.source == "cache" and (shape.indent or style.head):  # the cache keeps the paragraph's whole room
+        area = next((area for area in reversed(page.column_areas) if area.top <= line.top), None)
+        column = area.widths[placed.column or 0] if area is not None and (placed.column or 0) < len(area.widths) \
+            else None
+        if column is None or (left, room) != (shape.left, column - shape.left - shape.right):
+            return ("object set as a character on a saved line of an indented or labelled paragraph not as wide as "
+                    "the paragraph: where the line's text starts is not laid out")
+        room = _indented(room, shape, style)[0 if first else 1]
+        left = column - shape.right - room
+    if room >= _NO_WRAP:
+        return "object set as a character in a paragraph pressed onto one line: where it stands is not laid out"
+    pens = _pens(text, sizes, looks, advances, style, start, stop, _line_origin(style, first), room)
+    end = stop
+    while end > start and text[end - 1] == "\n":
+        end -= 1
+    content = end
+    while content > start and text[content - 1] in _HANGING_SPACES:
+        content -= 1
+    pen, used = pens[at - start], pens[content - start]
+    if used > room:
+        return "object set as a character on a line whose spaces shrink to fit it: where it stands is not laid out"
+    align = measure.align(paragraph.get("paraPrIDRef"))
+    if align in ("JUSTIFY", "DISTRIBUTE", "DISTRIBUTE_SPACE") and pen and (align != "JUSTIFY" or stop < len(text)):
+        return ("object set as a character on a line spread across its room (justified but the last, or "
+                "distributed): where Hancom adds the room is not laid out")
+    shift = 0.0
+    if align in ("CENTER", "RIGHT"):
+        gap = content < len(text) and text[content] != "\n" and auto_space_gap(
+            text[content - 1], text[content], sizes[content - 1] / 100, style, looks[content - 1])
+        if content < end or gap:
+            return ("object set as a character on a line set centred or right that ends in spaces or automatic "
+                    "spacing: whether Hancom counts them is not laid out")
+        shift = (room - used) / (2 if align == "CENTER" else 1)
+    return left + pen + shift + _object_margin(obj, "left"), line
+
+
 def _scope_place(frame: int, scope: _FrameTrace, first_page: int) -> tuple[int, int, int]:
     page, column = divmod(frame, scope.columns)
     return first_page + scope.first_page + page, scope.column_start + column, scope.first_top if page == 0 else 0
@@ -258,7 +459,7 @@ def _object_placement(section: int, paragraph: int, ordinal: int, obj: Any, size
     if position is None:
         unavailable.append("object page not retained by the layout path")
     if (x is None or top is None) and wrap == "AS_CHARACTER" and position is not None:
-        unavailable.append("object set as a character: where it stands on its line is not laid out")
+        unavailable.append(_AMONG if x is None else _AMONG_TALL)
     elif x is None or top is None:
         unavailable.append("object origin not measured")
     if width is None or height is None:
