@@ -21,11 +21,12 @@ from ..form_fit.measure import (
     _DEFAULT_TAB_STOP, _GLYPH_SPACE, _HANGING_SPACES, _TYPED_NO_BREAK_SPACE, _line_origin, auto_space_gap,
     char_advance, tab_reach,
 )
+from ..oxml.container import _outermost_factors, _unturned_box
 from ..oxml.namespaces import HP
 from ..oxml.table_sizes import _grid_extents_of
 from ._page_measure import (
     _DRAWINGS, _NO_WRAP, _OBJECTS, _CellLine, _CellSlice, _FlowTable, _LineContent, _Measure, _Row, _RowPart,
-    _caption, _caption_beside, _cell_spacing, _drawn_height, _effect_room, _floating, _indented, _inline_content,
+    _Unsupported, _caption, _caption_beside, _cell_spacing, _cell_text_ranges, _drawn_height, _effect_room, _floating, _indented, _inline_content,
     _local, _object_extent, _page_break, _shadow_drop, _text_size, _whole_rows,
 )
 from .pages import (
@@ -87,7 +88,7 @@ def _placement_result(
     paragraph_lines = {(entry.section, entry.paragraph): entry.lines for entry in paragraphs}
     nested_places: dict[Any, list[tuple[int, int]]] = {}
     object_places: dict[Any, ObjectPlacement] = {}
-    running = _running_areas(body_sources, paragraph_origins, pages, papers)
+    running = _running_areas(body_sources, paragraph_origins, pages, papers, measure)
     for section, source in enumerate(body_sources):
         for index, paragraph in enumerate(source):
             numbers = {table: number for number, table in enumerate(paragraph.iter(f"{HP}tbl"))}
@@ -123,10 +124,16 @@ def _placement_result(
                     placed = _held_object(placed, obj, object_places, by_source)
                     if placed.wrap == "AS_CHARACTER" and measure is not None:
                         placed = _in_cell(placed, obj, measure, by_source, pages, source, index)
+                    placed = _group_member(placed, obj, object_places)
                 elif placed.x is None and placed.wrap == "AS_CHARACTER" and measure is not None \
                         and obj.getparent() is not None and obj.getparent().getparent() is paragraph:
                     placed = _among_text(placed, obj, measure, source, index, paragraph_lines.get((section, index), ()),
                                          pages)
+                if measure is not None and obj.find(f"{HP}drawText") is not None:
+                    measure.tab_stop = _part_tab_stop(source, index)
+                    held, why = _box_lines(measure, obj, None if None in (placed.width, placed.height)
+                                           else (placed.width, placed.height))  # type: ignore[arg-type]
+                    placed = replace(placed, lines=held, unavailable=(*placed.unavailable, *why))
                 object_places[obj] = placed
                 objects.append(placed)
             for ordinal, area in enumerate(node for node in paragraph.iter() if _local(node) in _AREA_NAMES):
@@ -135,10 +142,11 @@ def _placement_result(
                     areas.extend(_area_placement(section, index, ordinal, *capture, pages) for capture in found)
                 elif area in running:
                     shown, why = running[area]
-                    areas.extend(AreaPlacement(section, index, ordinal, _local(area), page, 0, *box, unavailable=(why,))
-                                 for page, box in shown)
+                    missing = () if why is None else (why,)
+                    areas.extend(AreaPlacement(section, index, ordinal, _local(area), page, 0, *box, lines,
+                                               unavailable=missing) for page, box, lines in shown)
                     if not shown:
-                        areas.append(AreaPlacement(section, index, ordinal, _local(area), unavailable=(why,)))
+                        areas.append(AreaPlacement(section, index, ordinal, _local(area), unavailable=missing))
                 else:
                     areas.append(AreaPlacement(section, index, ordinal, _local(area),
                                                unavailable=("area placement not retained by the layout path",)))
@@ -148,23 +156,27 @@ def _placement_result(
 _AREA_NAMES = frozenset(("header", "footer", "footNote", "endNote"))
 
 
-def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], EstimatedLine],
-                   pages: list[PagePlacement], papers: list[_Page]
-                   ) -> dict[Any, tuple[list[tuple[int, tuple[int, int, int, int]]], str]]:
-    """Each header and footer of the body's paragraphs -> the pages it is drawn on, with its room there (x, top,
-    width, height on the paper), and what is not given. A header or footer set for every page runs from the page
-    of its paragraph's first line to the end of its section, or to the page where a later one of its kind starts;
-    it is left off the section's first page where the section hides it there (``hp:visibility``) and off a page
-    whose paragraphs hide it (``hp:pageHiding``). Its room is the page's: above the body as tall as the header
-    margin, below it as tall as the footer margin. One for odd or for even pages is not given pages: the layout
-    does not follow page numbers. The layout does not lay out its lines."""
+#: A header's or footer's pages, each with its room there (x, top, width, height on the paper) and its lines.
+_Shown = list[tuple[int, tuple[int, int, int, int], tuple[LinePlacement, ...]]]
 
-    result: dict[Any, tuple[list[tuple[int, tuple[int, int, int, int]]], str]] = {}
+
+def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], EstimatedLine],
+                   pages: list[PagePlacement], papers: list[_Page], measure: _Measure | None = None
+                   ) -> dict[Any, tuple[_Shown, str | None]]:
+    """Each header and footer of the body's paragraphs -> the pages it is drawn on, with its room there (x, top,
+    width, height on the paper) and its lines (see :func:`_running_lines`), and what is not given. A header or
+    footer set for every page runs from the page of its paragraph's first line to the end of its section, or to
+    the page where a later one of its kind starts; it is left off the section's first page where the section
+    hides it there (``hp:visibility``) and off a page whose paragraphs hide it (``hp:pageHiding``). Its room is
+    the page's: above the body as tall as the header margin, below it as tall as the footer margin. One for odd
+    or for even pages is not given pages: the layout does not count page numbers."""
+
+    result: dict[Any, tuple[_Shown, str | None]] = {}
     for section, paragraphs in enumerate(sources):
         own = [page.page for page in pages if page.section == section]
         hidden: dict[str, set[int]] = {"header": set(), "footer": set()}
         visibility = next(paragraphs[0].iter(f"{HP}visibility"), None) if paragraphs else None
-        found: list[tuple[int, str, Any]] = []
+        found: list[tuple[int, str, Any, int]] = []
         for index, paragraph in enumerate(paragraphs):
             origin = origins.get((section, index))
             if origin is None or not own:
@@ -177,25 +189,145 @@ def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], Esti
                             if node.get("hide" + kind.capitalize()) in ("1", "true"):
                                 hidden[kind].add(origin.page)
                     elif name in hidden:
-                        found.append((origin.page, name, node))
+                        found.append((origin.page, name, node, index))
         for kind in hidden:
             if own and visibility is not None and visibility.get("hideFirst" + kind.capitalize()) in ("1", "true"):
                 hidden[kind].add(own[0])
-        for at, (start, kind, node) in enumerate(found):
+        for at, (start, kind, node, index) in enumerate(found):
             if node.get("applyPageType", "BOTH") != "BOTH":
-                result[node] = ([], f"{kind} for odd or even pages: the layout does not follow page numbers")
+                result[node] = ([], f"{kind} for odd or even pages: the layout does not count page numbers "
+                                    "(hp:startNum, hp:newNum)")
                 continue
-            stop = min((other for other, name, later in found[at + 1:]
+            stop = min((other for other, name, later, _ in found[at + 1:]
                         if name == kind and later.get("applyPageType", "BOTH") == "BOTH"), default=own[-1] + 1)
-            shown = []
+            shown: _Shown = []
+            why: str | None = f"{kind} lines are not laid out"
+            laid: dict[tuple[int, int], tuple[tuple[tuple[int, _LineDetail, _RunPositions | None], ...],
+                                              str | None]] = {}
             for page in own:
                 if start <= page < stop and page not in hidden[kind]:
                     paper = papers[page]
                     top, tall = (paper.top - paper.header, paper.header) if kind == "header" \
                         else (paper.top + paper.body, paper.footer)
-                    shown.append((page, (paper.left, top, paper.text_width, tall)))
-            result[node] = (shown, f"{kind} lines are not laid out")
+                    lines: tuple[LinePlacement, ...] = ()
+                    if measure is not None:
+                        if (paper.text_width, tall) not in laid:
+                            measure.tab_stop = _part_tab_stop(paragraphs, index)
+                            laid[paper.text_width, tall] = _running_lines(measure, node, kind, paper.text_width, tall)
+                        placed, why = laid[paper.text_width, tall]
+                        lines = tuple(_placement_line(EstimatedLine(page, 0, top + y - paper.top), paper.top, detail,
+                                                      styles) for y, detail, styles in placed)
+                    shown.append((page, (paper.left, top, paper.text_width, tall), lines))
+            result[node] = (shown, why)
     return result
+
+
+def _box_lines(measure: _Measure, obj: Any, size: tuple[int, int] | None = None
+               ) -> tuple[tuple[TableCellLinePlacement, ...], tuple[str, ...]]:
+    """Placement tracing only: the lines of the text a rectangle holds (``hp:drawText``), laid out as a cell's are
+    (see :func:`_sub_list_lines`) at the width of the box (``lastWidth``, else its own; a member of a group without
+    a size of its own: *size*, as drawn in its group, when ``lastWidth`` says the same) inside its text margins,
+    with their top and x relative to the box: below its top text margin, set at the top, centre or foot of the
+    room the drawing's height (as the layout draws it, see :func:`~hwpx.layout._page_measure._drawn_height`)
+    leaves as its text says (``hp:subList@vertAlign``); and what is not given. ``((), ())`` for a drawing
+    holding no text."""
+
+    box = obj.find(f"{HP}drawText")
+    sub_list = box.find(f"{HP}subList") if box is not None else None
+    paragraphs = sub_list.findall(f"{HP}p") if sub_list is not None else []
+    if not paragraphs:
+        return (), ()
+    if _local(obj) != "rect":
+        return (), ("text in a drawing other than a rectangle: where its lines stand is not laid out",)
+    if sub_list.get("textDirection", "HORIZONTAL") != "HORIZONTAL":
+        return (), ("text box text running down: its lines are not laid out",)
+    if obj.find(f"{HP}sz") is None and (size is None or box.get("lastWidth", "0") not in ("0", str(size[0]))):
+        return (), ("text box without a size of its own (hp:sz) or as drawn in its group: its lines are not laid "
+                    "out",)
+    margin = box.find(f"{HP}textMargin")
+    left, right, top, bottom = (0, 0, 0, 0) if margin is None else (
+        int(margin.get(side, 0)) for side in ("left", "right", "top", "bottom"))
+    width = size[0] if obj.find(f"{HP}sz") is None and size is not None \
+        else int(box.get("lastWidth", 0)) or int(obj.find(f"{HP}sz").get("width", 0))
+    try:
+        laid = _sub_list_lines(measure, paragraphs, width - left - right)
+        tall = size[1] if obj.find(f"{HP}sz") is None and size is not None else _drawn_height(obj, measure)
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return (), ("text box lines are not laid out",)
+    tops, reach = _stacked_tops(measure, paragraphs, [(height, advance) for height, advance, *_ in laid])
+    room = tall - top - reach - bottom
+    shift = {"TOP": 0, "CENTER": room // 2, "BOTTOM": room}.get(sub_list.get("vertAlign", "TOP")) \
+        if room >= 0 else None
+    lines = tuple(TableCellLinePlacement(
+        paragraph, line, height, None if shift is None else top + y + shift,
+        None if content is None or content.x is None else content.x + left,
+        content.width if content else None, content.start if content else None, content.end if content else None,
+        content.text if content else None, content.source if content else None, _line_runs(content, styles))
+        for y, (height, _, content, styles, paragraph, line) in zip(tops, laid))
+    missing = []
+    if shift is None:
+        missing.append("text box text taller than the box: where its lines stand up and down is not laid out")
+    if any(line.text is None for line in lines):
+        missing.append("text box line text ranges not fully retained")
+    return lines, tuple(missing)
+
+
+def _sub_list_lines(measure: _Measure, paragraphs: list[Any], width: int
+                    ) -> list[tuple[int, int, _LineContent | None, _RunPositions | None, int, int]]:
+    """Placement tracing only: the lines of the *paragraphs* of a header, a footer or a text box laid out *width*
+    wide as a cell's are (:meth:`~hwpx.layout._page_measure._Measure.stack_lines`, keeping their layout caches),
+    each as (height, advance to the next line's top, its text range, its runs, paragraph, line in it).
+    Raises where the layout does not follow them."""
+
+    metrics = measure.stack_lines(paragraphs, width, caches=True)
+    found: list[tuple[_LineContent | None, _RunPositions | None, int, int]] = []
+    for number, paragraph in enumerate(paragraphs):
+        count = len(measure.stack_lines([paragraph], width, caches=True))
+        content = _cell_text_ranges(measure, paragraph, paragraph.findall(f"{HP}run"), width, count)
+        styles = _run_positions(paragraph)
+        found += [(content[line] if content else None, styles, number, line) for line in range(count)]
+    if not metrics or len(found) != len(metrics):
+        raise _Unsupported("lines not matched")
+    return [(height, advance, *rest) for (height, advance), rest in zip(metrics, found)]
+
+
+def _stacked_tops(measure: _Measure, paragraphs: list[Any], metrics: list[tuple[int, int]]) -> tuple[list[int], int]:
+    """How far below the top of the text each line stands (the first below the first paragraph's spacing before,
+    as in a cell), and how far down the last one reaches."""
+
+    y, tops = measure.shape(paragraphs[0].get("paraPrIDRef")).prev, []
+    for _, advance in metrics:
+        tops.append(y)
+        y += advance
+    return tops, tops[-1] + metrics[-1][0]
+
+
+def _running_lines(measure: _Measure, node: Any, kind: str, width: int, tall: int
+                   ) -> tuple[tuple[tuple[int, _LineDetail, _RunPositions | None], ...], str | None]:
+    """Placement tracing only: the lines of a header or footer (*node*) laid out at the *width* of its room as a
+    cell's lines are (see :func:`_sub_list_lines`), each with how far below its room's top it stands: set at the
+    room's top, centre or foot as its text says (``hp:subList@vertAlign``), the room *tall*; and what is not
+    given: a text taller than its room, or running otherwise than across, is not placed."""
+
+    sub_list = node.find(f"{HP}subList")
+    paragraphs = sub_list.findall(f"{HP}p") if sub_list is not None else []
+    if not paragraphs:
+        return (), f"{kind} holds no paragraph"
+    if sub_list.get("textDirection", "HORIZONTAL") != "HORIZONTAL":
+        return (), f"{kind} text running down: its lines are not laid out"
+    try:
+        laid = _sub_list_lines(measure, paragraphs, width)
+    except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        return (), f"{kind} lines are not laid out"
+    tops, reach = _stacked_tops(measure, paragraphs, [(height, advance) for height, advance, *_ in laid])
+    room = tall - reach
+    shift = {"TOP": 0, "CENTER": room // 2, "BOTTOM": room}.get(sub_list.get("vertAlign", "TOP"))
+    if room < 0 or shift is None:
+        return (), f"{kind} text taller than its room: where Hancom sets it is not laid out"
+    lines = tuple((top + shift, _LineDetail(height, content), styles)
+                  for top, (height, _, content, styles, _, _) in zip(tops, laid))
+    complete = all(detail.content is not None and detail.content.text is not None for _, detail, _ in lines)
+    return lines, None if complete else "area line text ranges not fully retained"
 
 
 #: What holds an object other than a body paragraph, and how the placement names it.
@@ -490,6 +622,38 @@ def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[Any, ..
                     "spacing: whether Hancom counts them is not laid out")
         shift = (room - used) / (2 if align == "CENTER" else 1)
     return left + pen + shift + _object_margin(obj, "left"), line
+
+
+def _group_member(placed: ObjectPlacement, obj: Any, others: dict[Any, ObjectPlacement]) -> ObjectPlacement:
+    """*placed*, a member of a group (``hp:container``), with its rectangle in the outermost group's where that
+    group has its rectangle: the box python-hwpx reads for an unturned, unflipped member
+    (:func:`~hwpx.oxml.container._unturned_box`: its original size through its own scaling, moved by its
+    translation, in the outermost group's own space), drawn as the outermost group is scaled
+    (:func:`~hwpx.oxml.container._outermost_factors`). Unchanged for any other object; a member that box does not
+    say for keeps its page and says so."""
+
+    if obj.getparent() is None or _local(obj.getparent()) != "container":
+        return placed
+    outer = obj
+    for up in obj.iterancestors():
+        if _local(up) != "container":
+            break
+        outer = up
+    group = others.get(outer)
+    rest = tuple(why for why in placed.unavailable if why not in (_OBJECT_HOLDERS["container"],
+                                                                  "object size not measured"))
+    if group is None or None in (group.page, group.x, group.top):
+        return placed
+    factors = _outermost_factors(outer)
+    box = _unturned_box(obj, factors) if factors is not None else None
+    if box is None:
+        kept = tuple(why for why in placed.unavailable if why != _OBJECT_HOLDERS["container"])
+        return replace(placed, unavailable=("a member of a group: a group or member turned, flipped or stretched "
+                                            "otherwise than by scaling is not placed in the group", *kept))
+    assert factors is not None and group.x is not None and group.top is not None
+    left, top = round(box[0] * factors[0]), round(box[1] * factors[1])
+    return replace(placed, page=group.page, column=group.column, x=group.x + left, top=group.top + top,
+                   width=round(box[2] * factors[0]) - left, height=round(box[3] * factors[1]) - top, unavailable=rest)
 
 
 def _scope_place(frame: int, scope: _FrameTrace, first_page: int) -> tuple[int, int, int]:

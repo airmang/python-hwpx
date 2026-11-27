@@ -438,7 +438,8 @@ class ObjectPlacement:
     """Drawing or embedded object by original paragraph descendant index, in source order.
 
     A complete rectangle is paper-relative, in HWPUNIT. When only its extent or its page is known,
-    the other components are empty and `unavailable` describes the missing information.
+    the other components are empty and `unavailable` describes the missing information. *lines* are the lines of
+    the text a drawing holds (``hp:drawText``), their top and x relative to the drawing's box, as a cell's are.
     """
 
     section: int
@@ -453,6 +454,7 @@ class ObjectPlacement:
     width: int | None = None
     height: int | None = None
     unavailable: tuple[str, ...] = ()
+    lines: tuple[TableCellLinePlacement, ...] = ()
 
 
 @dataclass(frozen=True)

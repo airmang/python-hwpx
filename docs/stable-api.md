@@ -274,7 +274,8 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   `TableRowPlacement.x`는 그 쪽에서 단 왼쪽부터 표 왼쪽 끝까지의 거리이고, 칸 줄의 `top`은 칸의 세로 정렬을
   반영한 칸 기준 위치다.
   `TableCaptionPlacement`는 엔진이 캡션과 간격에 예약한 영역을 나타낸다.
-  `ObjectPlacement`와 `AreaPlacement`의 쪽 좌표는 종이 기준이다. 머리말·꼬리말은 적용되는 쪽마다 하나씩 실린다. 배치 경로에 따라 일부
+  `ObjectPlacement`와 `AreaPlacement`의 쪽 좌표는 종이 기준이다. 머리말·꼬리말은 적용되는 쪽마다 하나씩 실리고 그 줄을
+  `lines`에 싣는다. `ObjectPlacement.lines`는 글상자 안 글의 줄(글상자 기준 `TableCellLinePlacement`)이다. 배치 경로에 따라 일부
   값은 비어 있고 `unavailable`이 그 이유를 제공한다.
 - **수식 저작**(5.2.0 신규, LaTeX → EqEdit): `latex_to_eqedit`,
   `estimate_equation_size`, `UnsupportedLatexError`. 7.0에서 `hwpx.equation`의 stable
