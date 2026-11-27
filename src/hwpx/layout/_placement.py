@@ -18,16 +18,17 @@ from itertools import pairwise
 from typing import Any
 
 from ..form_fit.measure import (
-    _DEFAULT_TAB_STOP, _GLYPH_SPACE, _HANGING_SPACES, _TYPED_NO_BREAK_SPACE, _line_origin, auto_space_gap,
+    _DEFAULT_TAB_STOP, _GLYPH_SPACE, _HANGING_SPACES, _LAYOUT_UNIT, _TYPED_NO_BREAK_SPACE, _line_origin, auto_space_gap,
     char_advance, tab_reach,
 )
 from ..oxml.container import _outermost_factors, _unturned_box
 from ..oxml.namespaces import HP
-from ..oxml.table_sizes import _grid_extents_of
+from ..oxml.table_sizes import _grid_extents_of, cell_margins_of
 from ._page_measure import (
     _DRAWINGS, _NO_WRAP, _OBJECTS, _CellLine, _CellSlice, _FlowTable, _LineContent, _Measure, _Row, _RowPart,
-    _Unsupported, _caption, _caption_beside, _cell_spacing, _cell_text_ranges, _drawn_height, _effect_room, _floating, _indented, _inline_content,
-    _local, _object_extent, _page_break, _shadow_drop, _text_size, _whole_rows,
+    _Unsupported, _caption, _caption_beside, _cell_spacing, _cell_text_ranges, _drawn_height, _effect_room,
+    _floating, _indented, _inline_content, _local, _object_extent, _page_break, _shadow_drop, _text_size,
+    _whole_rows,
 )
 from .pages import (
     AreaPlacement, EstimatedLine, LayoutEstimate, LinePlacement, ObjectPlacement, PageEstimate, PagePlacement,
@@ -267,7 +268,9 @@ def _box_lines(measure: _Measure, obj: Any, size: tuple[int, int] | None = None
     missing = []
     if shift is None:
         missing.append("text box text taller than the box: where its lines stand up and down is not laid out")
-    if any(line.text is None for line in lines):
+    if any(_local(child) in _OBJECTS for paragraph in paragraphs for child in paragraph.iter()):
+        missing.append("a text box holding a table or a drawing: what it holds besides its text is not placed")
+    elif any(line.text is None for line in lines):
         missing.append("text box line text ranges not fully retained")
     return lines, tuple(missing)
 
@@ -276,16 +279,21 @@ def _sub_list_lines(measure: _Measure, paragraphs: list[Any], width: int
                     ) -> list[tuple[int, int, _LineContent | None, _RunPositions | None, int, int]]:
     """Placement tracing only: the lines of the *paragraphs* of a header, a footer or a text box laid out *width*
     wide as a cell's are (:meth:`~hwpx.layout._page_measure._Measure.stack_lines`, keeping their layout caches),
-    each as (height, advance to the next line's top, its text range, its runs, paragraph, line in it).
-    Raises where the layout does not follow them."""
+    each as (height, advance to the next line's top, its text range, its runs, paragraph, line in it); the lines of
+    a paragraph holding a table or a drawing have no text (their text is not all they hold, and what else they hold
+    is not placed). Raises where the layout does not follow them."""
 
     metrics = measure.stack_lines(paragraphs, width, caches=True)
     found: list[tuple[_LineContent | None, _RunPositions | None, int, int]] = []
     for number, paragraph in enumerate(paragraphs):
         count = len(measure.stack_lines([paragraph], width, caches=True))
-        content = _cell_text_ranges(measure, paragraph, paragraph.findall(f"{HP}run"), width, count)
+        runs = paragraph.findall(f"{HP}run")
+        content = _cell_text_ranges(measure, paragraph, runs, width, count)
+        # a paragraph holding a table or a drawing: its text is not all its lines hold, what else is not placed
+        holds = any(_local(node) in _OBJECTS for node in paragraph.iter())
         styles = _run_positions(paragraph)
-        found += [(content[line] if content else None, styles, number, line) for line in range(count)]
+        found += [(None if not content else replace(content[line], text=None) if holds else content[line], styles,
+                   number, line) for line in range(count)]
     if not metrics or len(found) != len(metrics):
         raise _Unsupported("lines not matched")
     return [(height, advance, *rest) for (height, advance), rest in zip(metrics, found)]
@@ -326,6 +334,8 @@ def _running_lines(measure: _Measure, node: Any, kind: str, width: int, tall: in
         return (), f"{kind} text taller than its room: where Hancom sets it is not laid out"
     lines = tuple((top + shift, _LineDetail(height, content), styles)
                   for top, (height, _, content, styles, _, _) in zip(tops, laid))
+    if any(_local(child) in _OBJECTS for paragraph in paragraphs for child in paragraph.iter()):
+        return lines, f"{kind} holds a table or a drawing: what it holds besides its text is not placed"
     complete = all(detail.content is not None and detail.content.text is not None for _, detail, _ in lines)
     return lines, None if complete else "area line text ranges not fully retained"
 
@@ -387,9 +397,9 @@ def _among_text(placed: ObjectPlacement, obj: Any, measure: _Measure, paragraphs
     measure.tab_stop = _part_tab_stop(paragraphs, index)
     page = pages[placed.page]
 
-    def whole(line: Any) -> int | None:  # the column the line stands in
+    def whole(line: Any) -> tuple[float, float] | None:  # the column the line stands in
         area = next((area for area in reversed(page.column_areas) if area.top <= line.top), None)
-        return area.widths[placed.column or 0] if area is not None and (placed.column or 0) < len(area.widths) \
+        return (0, area.widths[placed.column or 0]) if area is not None and (placed.column or 0) < len(area.widths) \
             else None
 
     found = _x_on_line(obj, measure, paragraphs[index], lines, whole)
@@ -429,13 +439,16 @@ def _in_cell(placed: ObjectPlacement, obj: Any, measure: _Measure, tables: dict[
     measure.tab_stop = _part_tab_stop(paragraphs, index)
     held = _OBJECT_HOLDERS["tc"]
     rest = tuple(why for why in placed.unavailable if why != held)
+    margins, size = cell_margins_of(cell, table), cell.find(f"{HP}cellSz")
+    inside = None if margins is None or size is None else (  # the room its paragraphs are laid out in, as a row's
+        margins.left, int(size.get("width", 0)) - margins.left - margins.right)
     why = None
     for row in placement.rows:
         for part in row.cells if not row.repeated else ():
             lines = tuple(line for line in (part.lines or part.lines_with_tables) if line.paragraph == order)
             if part.source_index != number or not lines:
                 continue
-            found = _x_on_line(obj, measure, paragraph, lines, lambda line: None)
+            found = _x_on_line(obj, measure, paragraph, lines, lambda line: inside)
             if isinstance(found, str):
                 why = why if found.startswith("object set as a character: no line") and why else found
                 continue
@@ -549,11 +562,12 @@ def _pens(text: str, sizes: list[int], looks: list[Any], advances: dict[int, flo
 
 
 def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[Any, ...],
-               whole: Callable[[Any], float | None]) -> tuple[float, Any] | str:
+               whole: Callable[[Any], tuple[float, float] | None]) -> tuple[float, Any] | str:
     """Placement tracing only: how far right of the left edge its *lines* are measured from (a body line's column,
     a cell line's cell) an object set as a character among text starts (its left outer margin outside), on the
-    line holding its text position, with that line; else why not. *whole* gives the width a line's paragraph is
-    laid out in (its column, its cell's inside), ``None`` where it is not known.
+    line holding its text position, with that line; else why not. *whole* gives where the room a line's
+    paragraph is laid out in starts from that edge and how wide it is (its column; its cell's inside, past the
+    cell's left margin), ``None`` where it is not known.
 
     The line starts where the layout starts it (a line Hancom saved in a paragraph with an indent or a label: as
     the layout indents its lines when the line has the paragraph's whole room); the object stands past the
@@ -591,12 +605,13 @@ def _x_on_line(obj: Any, measure: _Measure, paragraph: Any, lines: tuple[Any, ..
     shape = measure.shape(paragraph.get("paraPrIDRef"))
     left, room = line.x, line.width
     if line.source == "cache" and (shape.indent or style.head):  # the cache keeps the paragraph's whole room
-        column = whole(line)
-        if column is None or (left, room) != (shape.left, column - shape.left - shape.right):
+        area = whole(line)  # (Hancom saves a cell's lines in whole layout units, a little narrower than the cell)
+        inner = None if area is None else area[1] - shape.left - shape.right
+        if area is None or inner is None or left - area[0] != shape.left or not 0 <= inner - room < _LAYOUT_UNIT:
             return ("object set as a character on a saved line of an indented or labelled paragraph not as wide as "
                     "the paragraph: where the line's text starts is not laid out")
-        room = _indented(room, shape, style)[0 if first else 1]
-        left = column - shape.right - room
+        room = _indented(inner, shape, style)[0 if first else 1]
+        left = area[0] + area[1] - shape.right - room
     if room >= _NO_WRAP:
         return "object set as a character in a paragraph pressed onto one line: where it stands is not laid out"
     pens = _pens(text, sizes, looks, advances, style, start, stop, _line_origin(style, first), room)
