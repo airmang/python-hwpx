@@ -504,8 +504,10 @@ def test_a_table_the_layout_does_not_place_says_why():
     reasons = {reason for placed in layout.tables if not placed.rows for reason in placed.unavailable}
     assert reasons == {
         "a table in front of or behind the text takes no room in the layout: its place is not computed",
-        "a table in a header: what a header holds is not placed row by row",
+        "a table in a header: placed with the header on each page it is drawn on (AreaPlacement.tables)",
     }
+    area, = [area for area in layout.areas if area.kind == "header"]
+    assert len(area.tables) == 1 and area.tables[0].rows  # its rows are there
 
 
 def test_an_unsplit_table_left_before_its_line_is_not_placed():
@@ -1048,6 +1050,91 @@ def test_a_header_copy_under_the_section_settings_is_not_placed():
         "a header or footer kept under the section settings (hp:secPr): Hancom reads it from its control (hp:ctrl) "
         "only, placed there"),)
     assert [area.page for area in shown] == [0, 1, 2]
+
+
+def _running_table(kind, text, *, width=None, pages=1):
+    """A document whose header or footer (*kind*) holds one paragraph: *text*, then a 1x2 table set as a character
+    (*width* wide), and whose body fills *pages* pages."""
+
+    doc = HwpxDocument.new()
+    getattr(doc.page, f"set_{kind}")(text="바뀔 글")
+    doc.add_paragraph("본문")
+    held = doc.add_paragraph(text)
+    table = held.add_table(1, 2, width=width)
+    table.cell(0, 0).text = "칸"
+    sub_list = next(doc.sections[0].element.iter(f"{HP}{kind}")).find(f"{HP}subList")
+    sub_list.replace(sub_list.find(f"{HP}p"), held.element)
+    body = estimate_layout(doc).pages[0].body[3]
+    for _ in range((pages - 1) * (body // 1600) + 1):
+        doc.add_paragraph("쪽을 채우는 문단")
+    return doc, table
+
+
+def _running_layout(doc, kind):
+    layout = estimate_layout(doc)
+    assert layout.estimate == estimate_pages(doc)
+    return layout, [area for area in layout.areas if area.kind == kind]
+
+
+def test_a_table_alone_on_a_header_line_stands_there_on_each_page():
+    doc, table = _running_table("header", "", pages=2)
+    layout, areas = _running_layout(doc, "header")
+    assert [area.page for area in areas] == [0, 1]
+    entry, = layout.tables
+    assert entry.rows == () and entry.unavailable == (
+        "a table in a header: placed with the header on each page it is drawn on (AreaPlacement.tables)",)
+    for area in areas:
+        line, = area.lines
+        placed, = area.tables
+        row, = placed.rows
+        assert area.unavailable == ()  # all it holds besides text: a table placed on its line
+        assert (placed.section, placed.paragraph, placed.table) == (entry.section, entry.paragraph, entry.table)
+        assert placed.unavailable == () and (row.page, row.column) == (area.page, 0)
+        assert row.top == line.top == area.top  # set at the top of its room, as its text says
+        assert row.height == line.height and row.x == 0  # set left, no outer margin
+        assert [cell.width for cell in row.cells] == [21260, 21260] and row.cells[0].lines[0].text == "칸"
+
+
+def test_a_table_among_the_text_of_a_header_line_stands_where_a_body_line_sets_it():
+    doc, _ = _running_table("header", "머리말 글", width=12000)
+    layout, (area,) = _running_layout(doc, "header")
+    placed, = area.tables
+    row, = placed.rows
+    line, = area.lines
+    assert placed.unavailable == () and row.top == line.top == area.top and row.height == line.height
+    # the text on its line is not given: the area says so
+    assert area.unavailable == ("header holds a table or a drawing: what it holds besides its text is not placed",)
+
+    body = HwpxDocument.new()  # the same paragraph in the body, as wide as the header's room
+    body.add_paragraph("머리말 글").add_table(1, 2, width=12000).cell(0, 0).text = "칸"
+    among, = estimate_layout(body).tables
+    assert row.x == among.rows[0].x > 0
+
+
+def test_a_table_in_a_footer_taller_than_its_room_has_no_top():
+    doc, _ = _running_table("footer", "꼬리말 글", width=12000)
+    next(doc.sections[0].element.iter(f"{HP}margin")).set("footer", "600")
+    layout, (area,) = _running_layout(doc, "footer")
+    placed, = area.tables
+    row, = placed.rows
+    assert area.lines == () and row.top is None and row.x is not None and row.height is not None
+    assert placed.unavailable == ("inline table origin not measured: footer text taller than its room: where Hancom "
+                                  "sets it is not laid out",)
+    entry, = layout.tables
+    assert entry.unavailable == (
+        "a table in a footer: placed with the footer on each page it is drawn on (AreaPlacement.tables)",
+        *placed.unavailable)
+
+
+def test_a_header_table_not_set_as_a_character_is_not_placed_and_says_why():
+    doc, table = _running_table("header", "")
+    table.element.find(f"{HP}pos").set("treatAsChar", "0")
+    _, (area,) = _running_layout(doc, "header")
+    placed, = area.tables
+    assert placed.rows == () and placed.unavailable == (
+        "a table in a header placed otherwise than as a character: where Hancom stands it in the header is not laid "
+        "out",)
+    assert area.unavailable == ("header holds a table or a drawing: what it holds besides its text is not placed",)
 
 
 def _column_shares(doc):

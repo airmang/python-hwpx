@@ -269,6 +269,7 @@ major 경계에서만 깨지는 이름들입니다. 7.0에서 7개(`HwpxMarkdown
   번호·글머리표 문단의 첫 줄은 `label`(`LabelPlacement`: 글, 글자 모양 참조, 줄의 x와 같은 기준의 상자 x·폭)을 싣는다.
   `ColumnArea.gaps`는 단마다 그 뒤의 간격이다(너비가 다른 단 포함). `ColumnArea.separator`(`ColumnSeparator`: 종류,
   굵기 mm·HWPUNIT, 색)는 단 사이에 긋는 선이고, 선의 x는 `widths`·`gaps`로 구한 단 사이 간격의 가운데다.
+  머리말·꼬리말의 `AreaPlacement.tables`는 그 영역이 그 쪽에 지닌 표의 `TablePlacement`다(행 `top`은 종이 기준, `x`는 영역 왼쪽 끝 기준).
 - **표·개체·주석 배치 추정**: 같은 결과의 `tables`는 `TablePlacement`와 쪽별
   `TableRowPlacement`를 제공한다. `TableCellPlacement`의 칸 사각형과 줄 조각은 표 또는 칸
   기준 좌표를 사용한다. `TableCellLinePlacement`의 문자 범위는 칸 내부 문단 기준이다.

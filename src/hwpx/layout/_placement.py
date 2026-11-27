@@ -87,6 +87,7 @@ def _placement_result(
                 lines[0] = labels.first_line(body_sources[section][index], lines[0])
             paragraphs.append(ParagraphPlacement(section, index, tuple(lines)))
     tables: list[TablePlacement] = []
+    table_sources: list[Any] = []
     objects: list[ObjectPlacement] = []
     areas: list[AreaPlacement] = []
     by_source: dict[Any, TablePlacement] = {}
@@ -133,6 +134,7 @@ def _placement_result(
                     result = _labelled_cells(result, table, labels)
                 by_source[table] = result
                 tables.append(result)
+                table_sources.append(table)
             for ordinal, obj in enumerate(node for node in paragraph.iter() if _local(node) in _DRAWINGS):
                 placed = _object_placement(section, index, ordinal, obj, sizes.get(obj), object_captures.get(obj), pages)
                 if placed.page is None:
@@ -157,6 +159,17 @@ def _placement_result(
     running, numbers_by_page = _running_areas(body_sources, paragraph_origins, pages, papers, measure, by_source,
                                               labels)
     pages[:] = [replace(page, number=number) for page, number in zip(pages, numbers_by_page)]
+    held_by: dict[Any, list[TablePlacement]] = {}
+    for shown, _ in running.values():
+        for *_, held in shown:
+            for source, placed in held:
+                held_by.setdefault(source, []).append(placed)
+    for at, source in enumerate(table_sources):
+        if source in held_by:
+            kind = _local(_table_holder(source))
+            tables[at] = replace(tables[at], unavailable=(
+                f"a table in a {kind}: placed with the {kind} on each page it is drawn on (AreaPlacement.tables)",
+                *held_by[source][0].unavailable))
     for section, source in enumerate(body_sources):
         for index, paragraph in enumerate(source):
             for ordinal, area in enumerate(node for node in paragraph.iter() if _local(node) in _AREA_NAMES):
@@ -173,7 +186,8 @@ def _placement_result(
                 elif area in running:
                     shown, missing = running[area]
                     areas.extend(AreaPlacement(section, index, ordinal, _local(area), page, 0, *box, lines,
-                                               unavailable=missing) for page, box, lines in shown)
+                                               unavailable=missing, tables=tuple(table for _, table in held))
+                                 for page, box, lines, held in shown)
                     if not shown:
                         areas.append(AreaPlacement(section, index, ordinal, _local(area), unavailable=missing))
                 else:
@@ -185,8 +199,9 @@ def _placement_result(
 _AREA_NAMES = frozenset(("header", "footer", "footNote", "endNote"))
 
 
-#: A header's or footer's pages, each with its room there (x, top, width, height on the paper) and its lines.
-_Shown = list[tuple[int, tuple[int, int, int, int], tuple[LinePlacement, ...]]]
+#: A header's or footer's pages, each with its room there (x, top, width, height on the paper), its lines and the
+#: tables on them (each with its source).
+_Shown = list[tuple[int, tuple[int, int, int, int], tuple[LinePlacement, ...], tuple[tuple[Any, TablePlacement], ...]]]
 
 
 def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], EstimatedLine],
@@ -253,24 +268,35 @@ def _running_areas(sources: list[list[Any]], origins: dict[tuple[int, int], Esti
             why: str | None = None
             laid: dict[tuple[int, int], tuple[tuple[tuple[int, _LineDetail, _RunPositions | None, int, int], ...],
                                               str | None]] = {}
+            standing: dict[tuple[int, int], list[_HeldTable]] = {}
             held = node.findall(f"{HP}subList/{HP}p")
             for page in drawn[node]:
                 paper = papers[page]
                 top, tall = (paper.top - paper.header, paper.header) if kind == "header" \
                     else (paper.top + paper.body, paper.footer)
                 lines: tuple[LinePlacement, ...] = ()
+                tables: tuple[tuple[Any, TablePlacement], ...] = ()
                 why = f"{kind} lines are not laid out"
                 if measure is not None:
                     if (paper.text_width, tall) not in laid:
                         measure.tab_stop = _part_tab_stop(paragraphs, index)
                         laid[paper.text_width, tall] = _running_lines(measure, node, kind, paper.text_width, tall)
+                        standing[paper.text_width, tall] = _running_tables(measure, node, kind, paper.text_width, tall)
                     placed, why = laid[paper.text_width, tall]
                     lines = tuple(_placement_line(EstimatedLine(page, 0, top + y - paper.top), paper.top, detail,
                                                   styles) for y, detail, styles, _, _ in placed)
                     if labels is not None:
                         lines = tuple(labels.first_line(held[number], line) if not order and number < len(held)
                                       else line for line, (_, _, _, number, order) in zip(lines, placed))
-                shown.append((page, (paper.left, top, paper.text_width, tall), lines))
+                    tables = _area_tables(section, index, paragraphs[index], standing[paper.text_width, tall], page,
+                                          top, labels)
+                    if why == _HOLDS.format(kind=kind) and tables and all(
+                            _complete(table) and _table_alone(source.getparent().getparent().findall(f"{HP}run"))
+                            is source for source, table in tables) and not any(
+                            _local(child) in _OBJECTS and child not in dict(tables)
+                            for paragraph in held for child in paragraph.iter()):
+                        why = None  # what it holds besides its text: tables alone on their lines, placed there
+                shown.append((page, (paper.left, top, paper.text_width, tall), lines, tables))
             reasons = () if why is None else (why,)
             if node in unknown:
                 reasons = ((f"{kind} for odd or even pages, or before one: the page numbers of its section are not "
@@ -480,6 +506,12 @@ def _stacked_tops(measure: _Measure, paragraphs: list[Any], metrics: list[tuple[
     return tops, tops[-1] + metrics[-1][0]
 
 
+#: Why a header's or footer's lines leave out what it holds besides its text (its tables are on
+#: :attr:`~hwpx.layout.pages.AreaPlacement.tables`; a header holding only tables alone on their lines, all placed
+#: there, leaves it out).
+_HOLDS = "{kind} holds a table or a drawing: what it holds besides its text is not placed"
+
+
 def _running_lines(measure: _Measure, node: Any, kind: str, width: int, tall: int
                    ) -> tuple[tuple[tuple[int, _LineDetail, _RunPositions | None, int, int], ...], str | None]:
     """Placement tracing only: the lines of a header or footer (*node*) laid out at the *width* of its room as a
@@ -506,9 +538,149 @@ def _running_lines(measure: _Measure, node: Any, kind: str, width: int, tall: in
     lines = tuple((top + shift, _LineDetail(height, content), styles, number, order)
                   for top, (height, _, content, styles, number, order) in zip(tops, laid))
     if any(_local(child) in _OBJECTS for paragraph in paragraphs for child in paragraph.iter()):
-        return lines, f"{kind} holds a table or a drawing: what it holds besides its text is not placed"
+        return lines, _HOLDS.format(kind=kind)
     complete = all(detail.content is not None and detail.content.text is not None for _, detail, *_ in lines)
     return lines, None if complete else "area line text ranges not fully retained"
+
+
+#: A table on a line of a header or footer, as :func:`_running_tables` finds it: the table, its rows as the layout
+#: measures them (``None``: not followed), its left edge right of the room's and its first row's top below the
+#: room's top (``None``: not given), and why each of those is missing.
+_HeldTable = tuple[Any, _FlowTable | None, float | None, int | None, str | None, str | None]
+
+
+def _running_tables(measure: _Measure, node: Any, kind: str, width: int, tall: int) -> list[_HeldTable]:
+    """Placement tracing only: each table a header or footer (*node*) holds in its own paragraphs, laid out at the
+    *width* of its room *tall* as :func:`_running_lines` lays its lines, with where it stands there: a table set as
+    a character on the line holding it, alone on it as one alone on a body line stands
+    (:func:`~hwpx.layout.pages._on_its_line`), among text where an object so set stands (:func:`_x_on_line`, the
+    line measured from the room's left edge), below its top outer margin and a caption above it when the line is as
+    tall as it with them; and why what is missing is not given (see :data:`_HeldTable`)."""
+
+    from .pages import _on_its_line, _traced_table  # placement tracing only
+
+    sub_list = node.find(f"{HP}subList")
+    paragraphs = sub_list.findall(f"{HP}p") if sub_list is not None else []
+    held = [(number, table) for number, paragraph in enumerate(paragraphs) for run in paragraph.findall(f"{HP}run")
+            for table in run.findall(f"{HP}tbl")]
+    if not held:
+        return []
+    laid: list[tuple[int, int, _LineContent | None, int, int]] | None = None
+    shift = None
+    lost = f"{kind} lines are not laid out"
+    if sub_list.get("textDirection", "HORIZONTAL") != "HORIZONTAL":
+        lost = f"{kind} text running down: its lines are not laid out"
+    else:
+        try:
+            lines = _sub_list_lines(measure, paragraphs, width)
+            tops, reach = _stacked_tops(measure, paragraphs, [(height, advance) for height, advance, *_ in lines])
+            laid = [(top, height, content, number, order)
+                    for top, (height, _, content, _, number, order) in zip(tops, lines)]
+            room = tall - reach
+            shift = {"TOP": 0, "CENTER": room // 2, "BOTTOM": room}.get(sub_list.get("vertAlign", "TOP")) \
+                if room >= 0 else None
+        except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+            laid = None
+    found: list[_HeldTable] = []
+    for number, table in held:
+        position = table.find(f"{HP}pos")
+        if position is None or position.get("treatAsChar") != "1":
+            why = (f"a table in a {kind} placed otherwise than as a character: where Hancom stands it in the {kind} "
+                   "is not laid out")
+            found.append((table, None, None, None, why, why))
+            continue
+        try:
+            flow = measure.inline_tables.get(measure.source_control(table)) or _traced_table(measure, table)
+            if flow is not None:
+                flow = replace(flow, caption=_caption(measure, table))
+        except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+            flow = None
+        if flow is None:
+            why = measure.untraced_tables.get(measure.source_control(table)) or \
+                f"a table in a {kind}: its rows are not followed by the row model"
+            found.append((table, None, None, None, why, why))
+            continue
+        if laid is None:
+            found.append((table, flow, None, None, f"{_NO_LEFT}: {lost}", f"{_NO_ORIGIN}: {lost}"))
+            continue
+        paragraph = paragraphs[number]
+        own = [(top, height, content, order) for top, height, content, at, order in laid if at == number]
+        x: float | None = None
+        drop: int | None = None
+        line_top: int | None = None
+        why_left: str | None = None
+        try:
+            if _table_alone(paragraph.findall(f"{HP}run")) is table and len(own) == 1:
+                line_top, height, content, _ = own[0]
+                placed = _on_its_line(measure, paragraph, table, flow, None if content is None else content.x,
+                                      None if content is None else content.width, height)
+                x, drop = placed.left, placed.drop
+                if x is None:
+                    why_left = (f"{_NO_LEFT}: a table set as a character alone on a line of a {kind} narrower than it "
+                                "with its outer margins, or its line has no horizontal origin or width")
+            else:
+                standing = tuple(TableCellLinePlacement(
+                    number, order, height, top, None if content is None else content.x,
+                    None if content is None else content.width, None if content is None else content.start,
+                    None if content is None else content.end, None, None if content is None else content.source)
+                    for top, height, content, order in own)
+                at = _x_on_line(table, measure, paragraph, standing, lambda _: (0, width))
+                if isinstance(at, str):
+                    why_left = f"{_NO_LEFT}: " + at.replace("object set as a character",
+                                                            f"a table set as a character among the text of a {kind}")
+                else:
+                    x, line = at
+                    line_top = line.top
+                    margin = table.find(f"{HP}outMargin")
+                    box = sum(row.height for row in flow.rows) + _cell_spacing(table) + _extent_margins(table) \
+                        + sum(flow.caption)
+                    drop = (0 if margin is None else _margin(margin, "top")) + flow.caption[0] \
+                        if flow.doubt is None and box == line.height else None
+        except Exception:  # noqa: BLE001 - tracing must not change whether the estimate answers
+            x, drop, line_top, why_left = None, None, None, f"{_NO_LEFT}: its line in the {kind} is not measured"
+        top = None if None in (shift, drop, line_top) else line_top + shift + drop  # type: ignore[operator]
+        why_top = None
+        if top is None:
+            why_top = f"{_NO_ORIGIN}: " + (
+                f"{kind} text taller than its room: where Hancom sets it is not laid out" if shift is None else
+                f"its line in the {kind} is not measured" if line_top is None else
+                f"its line in the {kind} is taller than it, or its rows' heights are not measured")
+        found.append((table, flow, x, top, why_left, why_top))
+    return found
+
+
+def _area_tables(section: int, index: int, paragraph: Any, held: list[_HeldTable], page: int, room_top: int,
+                 labels: _Labels | None) -> tuple[tuple[Any, TablePlacement], ...]:
+    """The tables of a header or footer standing in body paragraph *index* of *section* (*paragraph*), as
+    :func:`_running_tables` finds them (*held*), on *page*, whose room for it starts *room_top* down the paper:
+    each with its rows there (their tops on the paper, their left edge right of the room's)."""
+
+    numbers = {table: number for number, table in enumerate(paragraph.iter(f"{HP}tbl"))}
+    result = []
+    for table, flow, x, top, why_left, why_top in held:
+        address = section, index, numbers.get(table, -1)
+        if flow is None:
+            result.append((table, TablePlacement(*address, (), unavailable=tuple(
+                dict.fromkeys(why for why in (why_left, why_top) if why)))))
+            continue
+        parts: list[_RowPart] = []
+        _whole_rows(flow, 0, 0, 0, len(flow.rows), parts)
+        capture = _TableCapture(flow, parts, 0, (0, sum(row.height for row in flow.rows)), absolute=top is not None,
+                                vague=why_top or _NO_ORIGIN)
+        placed = _table_placement(address, capture, _FrameTrace((), 1), page, room_top + (top or 0), numbers,
+                                  None, None if x is None else (x, False))
+        if why_left is not None:
+            placed = replace(placed, unavailable=tuple(why_left if why == _NO_LEFT else why
+                                                       for why in placed.unavailable))
+        placed = replace(placed, moved=None)  # it stands on its line in the header or footer, which does not move
+        if labels is not None and placed.rows:
+            placed = _labelled_cells(placed, table, labels)
+        result.append((table, placed))
+    return tuple(result)
+
+
+def _complete(placed: TablePlacement) -> bool:
+    return bool(placed.rows) and all(None not in (row.top, row.x, row.height) for row in placed.rows)
 
 
 #: What holds an object other than a body paragraph, and how the placement names it.

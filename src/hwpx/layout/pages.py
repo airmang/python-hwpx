@@ -505,7 +505,13 @@ class ObjectPlacement:
 
 @dataclass(frozen=True)
 class AreaPlacement:
-    """An original header, footer or note and its estimated fragment on a page."""
+    """An original header, footer or note and its estimated fragment on a page.
+
+    *tables* are the tables a header or footer holds on its lines (in its own paragraphs, not in their cells),
+    as drawn on this page: each carries the address it has in :attr:`LayoutEstimate.tables` (whose entry for it
+    says it is placed here) and rows on this page whose *top* is on the paper and whose *x* is right of the
+    area's left edge (*x*, the body's left edge: column 0's). A table the layout does not place on its line keeps
+    no rows and says why."""
 
     section: int
     paragraph: int
@@ -519,6 +525,7 @@ class AreaPlacement:
     height: int | None = None
     lines: tuple[LinePlacement, ...] = ()
     unavailable: tuple[str, ...] = ()
+    tables: tuple[TablePlacement, ...] = ()
 
 
 @dataclass(frozen=True)
