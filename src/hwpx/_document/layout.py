@@ -1180,6 +1180,7 @@ def set_page_number(
     prefix: str = "",
     suffix: str = "",
     format_type: str | None = None,
+    control: bool = True,
     section: HwpxOxmlSection | None = None,
 ) -> HwpxOxmlSectionHeaderFooter:
     """Replace header/footer content with an automatic page-number field."""
@@ -1193,6 +1194,7 @@ def set_page_number(
             "page_number": format,
             "position": position,
             "formatType": format_type,
+            "control": control,
         }
     )
     if suffix:

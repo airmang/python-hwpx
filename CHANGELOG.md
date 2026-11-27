@@ -29,6 +29,11 @@
 
 ### 추가
 
+- 머리말·꼬리말 쪽 번호를 한/글처럼 쓸 수 있다: `doc.page.set_page_number`와 `HeaderFooter.add_page_number_field`의 키워드
+  `control`(기본 `True`), `set_content`의 쪽 번호 항목 키 `"control"`. 한/글은 머리말·꼬리말에 넣는 쪽 번호를 자동 번호
+  (`hp:autoNum numType="PAGE"`) 하나로 쓰는데, python-hwpx는 그 뒤에 쪽 번호 컨트롤(`hp:pageNum`)을 하나 더 쓴다.
+  `control=False`면 자동 번호만 쓰고, `add_page_number_field`는 그 자동 번호를 돌려준다(`position`은 컨트롤의 값이라 쓰이지 않는다).
+  기본값은 7.x 동안 그대로이고(이 컨트롤을 세는 도구가 있다), 8.0에서 `False`로 바꿀 예정이다.
 - 번호·글머리표 머리가 글 앞에 놓이는 자리를 정할 수 있다: `doc.styles.add_numbering`의 수준 키, `doc.styles.set_numbering_level`과
   `doc.styles.ensure_bullet`의 키워드 `auto_indent`(`autoIndent`)·`use_instance_width`(`useInstWidth`)·`text_offset`(0~32767)·
   `text_offset_type`(`PERCENT`/`HWPUNIT`). `NumberingLevel`이 읽는 이름과 같다. 한/글은 Word 목록을 옮길 때

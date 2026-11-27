@@ -803,3 +803,5 @@
 {"date": "2026-11-26", "version": "7.0.2", "kind": "additive", "change": "doc.refs.add_hyperlink: 인자 생김 field_char_pr_id_ref", "reason": "docx-converter-gaps: 링크의 필드 시작·끝 런 글자 모양(field_char_pr_id_ref) — 빈 문단 첫머리 링크의 컨트롤이 작은 글 줄을 높이지 않게"}
 {"date": "2026-11-26", "version": "7.0.2", "kind": "additive", "change": "model.Note.add_hyperlink: 인자 생김 field_char_pr_id_ref", "reason": "docx-converter-gaps: 링크의 필드 시작·끝 런 글자 모양(field_char_pr_id_ref) — 빈 문단 첫머리 링크의 컨트롤이 작은 글 줄을 높이지 않게"}
 {"date": "2026-11-26", "version": "7.0.2", "kind": "additive", "change": "model.Paragraph.add_hyperlink: 인자 생김 field_char_pr_id_ref", "reason": "docx-converter-gaps: 링크의 필드 시작·끝 런 글자 모양(field_char_pr_id_ref) — 빈 문단 첫머리 링크의 컨트롤이 작은 글 줄을 높이지 않게"}
+{"date": "2026-11-26", "version": "7.0.2", "kind": "additive", "change": "doc.page.set_page_number: 인자 생김 control", "reason": "쪽 번호를 한/글처럼 자동 번호만으로 쓰는 control=False (8.0에서 기본으로 바꿀 준비)"}
+{"date": "2026-11-26", "version": "7.0.2", "kind": "additive", "change": "model.HeaderFooter.add_page_number_field: 인자 생김 control", "reason": "쪽 번호를 한/글처럼 자동 번호만으로 쓰는 control=False (8.0에서 기본으로 바꿀 준비)"}
