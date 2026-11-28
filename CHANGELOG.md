@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [7.0.3] - 2026-11-28
+
 ### 고침
 
 - 새 각주·미주(`doc.notes.add_footnote`/`add_endnote`, `paragraph.add_footnote`/`add_endnote`)가 구역의 번호 모양
