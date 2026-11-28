@@ -370,7 +370,9 @@ def test_real_tree_gate_runs_from_a_gitless_source_copy(tmp_path: Path) -> None:
     # +1: a table's rows moved and copied (oxml/table_rows.py, asks10d).
     # +1: a save's ZIP records, so untouched parts keep their compressed bytes (opc/zip_records.py).
     # +1: line caches that outlived their paragraph's content, moved out of section.py (oxml/_line_caches.py).
-    assert report["classifiedFiles"] == 184
+    # +1: what the page estimate's trace says (layout/_placement.py), out of layout/pages.py so that no shipped
+    # file passes four fifths of 256 KiB (tests/test_distribution_file_sizes.py).
+    assert report["classifiedFiles"] == 185
 
 
 def test_gitless_cli_reproduces_literal_dynamic_import_failure_without_mutating_source(

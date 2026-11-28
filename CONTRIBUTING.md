@@ -118,5 +118,6 @@ Claude 플러그인은 릴리스한 wheel을 풀어서 싣고, 플러그인 디�
   `python scripts/build_glyph_table.py`를 돌려 `src/hwpx/form_fit/_glyph_table.json.gz`를 다시 만들고 둘을 함께
   커밋하세요. `tests/test_glyph_table_data.py`가 두 파일의 표를 값 하나하나 비교합니다.
 - 쪽 수 추정은 `layout/pages.py`(공개 이름, 쪽·단 흐름)와 `layout/_page_measure.py`(상수, 문단·표 모델)로 나뉘어
-  있습니다. `_page_measure.py`는 `pages.py`를 참조하지 않고, 거기에 새로 정의한 이름은 `pages.py`의 import
+  있습니다. 추적 결과를 공개 배치 객체로 바꾸는 부분은 `layout/_placement.py`에 있고 `estimate_layout`이 부를 때
+  가져옵니다(배치 클래스는 `pages.py`에 둡니다). `_page_measure.py`는 `pages.py`를 참조하지 않고, 거기에 새로 정의한 이름은 `pages.py`의 import
   목록에도 넣습니다(`tests/test_layout_pages_split.py`).

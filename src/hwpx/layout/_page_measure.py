@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import copy
 import math
+from bisect import bisect_left
 from collections.abc import Collection
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Literal
 
 from ..form_fit.measure import (
     _DEFAULT_TAB_STOP,
@@ -30,6 +31,8 @@ from ..form_fit.measure import (
     paragraph_label,
     text_style_from_refs,
 )
+from ..oxml._paragraph_text_edit import _hancom_position_map
+from ..oxml.utils import line_seg_past_text
 from ..oxml._document_primitives import _remove_stale_paragraph_layout_cache
 from ..oxml.namespaces import HH, HP
 from ..oxml.paragraph_heading import paragraph_heading
@@ -43,6 +46,7 @@ _OBJECTS = frozenset({
     "container", "ole", "equation", "video", "chart", "checkBtn", "radioBtn", "btn", "button",
     "comboBox", "edit", "listBox", "scrollBar",
 })
+_DRAWINGS = _OBJECTS - {"tbl"}
 #: How an object in front of or behind the text wraps it: it takes no room from the text.
 _FLOATING = frozenset({"IN_FRONT_OF_TEXT", "BEHIND_TEXT"})
 #: Run content that takes its place in the text like a character: composed characters and ruby text.
@@ -282,6 +286,82 @@ def _cached_metrics(paragraph: Any) -> tuple[tuple[int, int], ...]:
     return tuple(metrics)
 
 
+@dataclass(frozen=True)
+class _LineContent:
+    """The text and horizontal metrics carried by a single measured line piece."""
+
+    start: int | None
+    end: int | None
+    text: str | None
+    source: Literal["cache", "engine"]
+    x: float | None
+    width: float | None
+
+
+def _cache_line_content(
+    paragraph: Any, mapping: tuple[list[tuple[int, str]], int] | None,
+) -> tuple[_LineContent, ...]:
+    segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg")
+    starts = [_stored_int_or_none(segment.get("textpos")) for segment in segments]
+    positions, characters, length = [], [], 0
+    if mapping is not None:
+        pieces, length = mapping
+        positions = [pos for pos, _ in pieces]
+        characters = [text for _, text in pieces]
+    result = []
+    for start, end, segment in zip(starts, [*starts[1:], length], segments):
+        text = None
+        if mapping is not None and start is not None and end is not None:
+            if start == length + 1 and not line_seg_past_text(segment, length):
+                end = max(end, start)
+            if 0 <= start <= end <= length + 1:
+                text = "".join(characters[bisect_left(positions, start):bisect_left(positions, end)])
+        result.append(_LineContent(start, end if text is not None else None, text, "cache",
+                                   _stored_int_or_none(segment.get("horzpos")),
+                                   _stored_int_or_none(segment.get("horzsize"))))
+    return tuple(result)
+
+
+def _stored_int_or_none(value: str | None) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except ValueError:
+        return None
+
+
+def _measured_line_content(
+    mapping: tuple[list[tuple[int, str]], int] | None,
+    text: str,
+    starts: list[int] | tuple[int, ...],
+    widths: list[float],
+    shape: _Shape,
+    column: int,
+    *,
+    offset: int = 0,
+    offsets: list[float | None] | None = None,
+) -> tuple[_LineContent, ...]:
+    if mapping is None:
+        return ()
+    pieces, length = mapping
+    pieces = [(position, value) for position, value in pieces if value]
+    plain = "".join(value for _, value in pieces)
+    normalized = text.replace(_GLYPH_SPACE, "\u3000").replace(_TYPED_NO_BREAK_SPACE, "\u00a0")
+    if plain != normalized:
+        return ()
+    result = []
+    for index, (start, end) in enumerate(zip(starts, [*starts[1:], len(text) - offset])):
+        start, end = start + offset, end + offset
+        low = 0 if start == 0 else pieces[start][0] if start < len(pieces) else length
+        high = pieces[end][0] if end < len(pieces) else length
+        width = widths[min(index, len(widths) - 1)]
+        width = width if width != _NO_WRAP and not (offsets is not None and "\n" in text) else None
+        x = None if width is None else column - shape.right - width
+        if x is not None and offsets is not None:
+            x = offsets[min(index, len(offsets) - 1)]
+        result.append(_LineContent(low, high, plain[start:end], "engine", x, width))
+    return tuple(result)
+
+
 class _Lookups:
     """The shape lookups FormFit's text style reads, with the paragraph shapes and tab definitions read once:
     the document reads them from the header again on every lookup. (No ``_root`` attribute, so FormFit
@@ -312,7 +392,19 @@ class _Lookups:
 class _Measure:
     """Shapes and line breaking of one document."""
 
-    def __init__(self, root: Any) -> None:
+    def __init__(self, root: Any, *, trace: bool = False) -> None:
+        self.trace = trace
+        self._original_paragraphs: dict[Any, Any] = {}
+        self._original_controls: dict[Any, Any] = {}
+        self.inline_tables: dict[Any, _FlowTable] = {}
+        #: placement tracing only: original hp:tbl -> why the trace could not follow its rows
+        self.untraced_tables: dict[Any, str] = {}
+        #: placement tracing only: original hp:tbl placed by its hp:pos -> how far right its left edge stands, of
+        #: the column's left edge or (True) of the paper's
+        self.table_x: dict[Any, tuple[int, bool]] = {}
+        self.sized: set[Any] = set()  # placement tracing only: the paragraphs whose objects were sized
+        self._aligns: dict[str, str] = {}
+        self.drawn_sizes: dict[Any, tuple[int | None, int]] = {}
         self._root = root
         self._lookups = _Lookups(root)
         self._header = root.headers[0].element
@@ -416,6 +508,42 @@ class _Measure:
             self._drawn = _drawn_labels(self._root)
         self._drawn.update({copy: self._drawn[original] for copy, original in copies.items()
                             if original in self._drawn})
+
+    def track_paragraph_copies(self, copies: dict[Any, Any]) -> None:
+        if self.trace:
+            self._original_paragraphs.update(
+                (copy, self._original_paragraphs.get(original, original)) for copy, original in copies.items()
+            )
+
+    def track_control_copies(self, copy: Any, original: Any) -> None:
+        if self.trace:
+            for duplicate, source in zip(copy.iter(), original.iter()):
+                if _local(source) in _OBJECTS | _MARKS or _local(source) in {"ctrl", "footNote", "endNote", "header", "footer"}:
+                    self._original_controls[duplicate] = self.source_control(source)
+
+    def align(self, para_pr_id: Any) -> str:
+        """How a paragraph shape sets its lines across the column (``hh:align@horizontal``; placement tracing
+        only: the layout does not read it)."""
+
+        key = str(para_pr_id)
+        if key not in self._aligns:
+            shape = next((el for el in self._header.iter(f"{HH}paraPr") if el.get("id") == key), None)
+            align = shape.find(f"{HH}align") if shape is not None else None
+            self._aligns[key] = align.get("horizontal", "JUSTIFY") if align is not None else "JUSTIFY"
+        return self._aligns[key]
+
+    def track_tables(self, copy: Any, original: Any) -> None:
+        """The tables of *copy*, which holds *original*'s in the same order (its layout caches may be gone)."""
+
+        for duplicate, source in zip(copy.iter(f"{HP}tbl"), original.iter(f"{HP}tbl")):
+            self._original_controls[duplicate] = self.source_control(source)
+
+    def source_control(self, element: Any) -> Any:
+        return self._original_controls.get(element, element) if self.trace else None
+
+    def native_positions(self, paragraph: Any, *, controls: dict[Any, int] | None = None
+                         ) -> tuple[list[tuple[int, str]], int] | None:
+        return _hancom_position_map(self._original_paragraphs.get(paragraph, paragraph), controls=controls)
 
     def pictured(self, para_pr_id: Any) -> bool:
         """Whether a paragraph shape heads its paragraphs with a picture bullet sized by its picture
@@ -852,6 +980,26 @@ class _Row:
     #: the tables among its tallest cell's text placed top and bottom, square, or in front of or behind it
     #: (laid out by :meth:`_Measure.wrapped_lines`): a page end is not followed through them
     reaches: tuple[_Reach, ...] = ()
+    detail: tuple[tuple[_CellLine, ...], ...] = ()
+    source_cell: int | None = None
+    cell_line_start: int = 0
+    #: placement tracing only: where the cell sets its lines (hp:subList@vertAlign), and why it keeps none
+    valign: str = "TOP"
+    undetailed: str = ""
+
+
+@dataclass(frozen=True)
+class _CellLine:
+    height: int
+    #: how far below the cell's top the line stands in a cell set at its top, the cell whole (the cell's part and
+    #: its vertical alignment move it: see ``_placement._line_shift``)
+    top: int | None
+    content: _LineContent | None
+    #: the tables (original hp:tbl) set as characters that stand on this line
+    tables: tuple[Any, ...] = ()
+    #: the room above the line when a part of the cell starts with it (its paragraph's spacing before on a
+    #: paragraph's first line); ``None`` where that is not read
+    lead: int | None = 0
 
 
 @dataclass(frozen=True)
@@ -865,6 +1013,14 @@ class _FlowTable:
     offset: int = 0            # alone in its paragraph: how far below the paragraph's line it starts
     caption: tuple[int, int] = (0, 0)  # a caption above it, below it: its lines and its gap
     cut: int = _SPARE_CUT      # how far above the body's foot its rows end at most
+    source: Any = None         # original hp:tbl, kept only for placement tracing
+    #: placement tracing only: why the heights of its rows are not reported -- the layout took the table as tall
+    #: as Hancom drew it (its saved height, or its line's in a layout cache), and its rows do not add up to that
+    doubt: str | None = None
+    #: placement tracing only, a table set as a character that is all its line holds: how far below the line's top
+    #: its first row stands and how far right of the column's left edge its left edge (see :func:`_on_its_line`)
+    drop: int | None = None
+    left: float | None = None
 
     @property
     def above(self) -> int:
@@ -877,6 +1033,40 @@ class _FlowTable:
         """Room below the last row: a caption below and the bottom margin."""
 
         return self.margins[1] + self.caption[1]
+
+
+@dataclass(frozen=True)
+class _CellSlice:
+    source_cell: int
+    rows: int
+    start: int
+    stop: int
+
+
+@dataclass(frozen=True)
+class _RowPart:
+    row: int
+    frame: int
+    top: int
+    height: int | None
+    start: int | None
+    stop: int | None
+    repeated: bool = False
+    cells: tuple[_CellSlice, ...] | None = None
+
+
+@dataclass
+class _RowTrace:
+    """The row pieces accepted by one call to the row paginator."""
+
+    index: int
+    parts: list[_RowPart] = field(default_factory=list)
+    line: int | None = 0
+
+    def add(self, frame: int, top: int, height: int | None, count: int | None) -> None:
+        stop = self.line + count if self.line is not None and count is not None else None
+        self.parts.append(_RowPart(self.index, frame, top, height, self.line if stop is not None else None, stop))
+        self.line = stop
 
 
 def _rows(measure: _Measure, table: Any) -> list[_Row]:
@@ -910,6 +1100,8 @@ def _table_rows(measure: _Measure, table: Any) -> tuple[list[_Row], list[tuple[i
     for tc in (tc for tr in table.findall(f"{HP}tr") for tc in tr.findall(f"{HP}tc")):
         positions.take(_row_span(tc), 1)
         row, span = _cell_row(measure, table, tc, widths.get(tc)), _row_span(tc)
+        if measure.trace:
+            row = replace(row, source_cell=len(cells))
         if spacing:  # the cell spacing above it, kept with its lines when it goes on over a page end
             row = replace(row, height=row.height + spacing, margins=row.margins + spacing)
         address = tc.find(f"{HP}cellAddr")
@@ -1255,10 +1447,13 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
         vertical = margins.top + margins.bottom
         height = max(_cell_height(cell.find(f"{HP}cellSz")), vertical)
         return _Row(height, 1, height - vertical, height - vertical, vertical, cell.get("header") == "1",
-                    first=height - vertical)
+                    first=height - vertical, undetailed="vertical text or a table of fixed size: the cell is one "
+                                                        "block, its lines are not laid out" if measure.trace else "")
     paragraphs = cell.findall(f"{HP}subList/{HP}p")
     if _split_before_text(paragraphs):  # the lines as Hancom drew them hold the parts: laid out anew
-        paragraphs = [_uncached(paragraph) for paragraph in paragraphs]
+        kept, paragraphs = paragraphs, [_uncached(paragraph) for paragraph in paragraphs]
+        for duplicate, source in zip(paragraphs, kept) if measure.trace else ():  # the copies' tables are the originals'
+            measure.track_tables(duplicate, source)
     nested = _holds_table(cell)
     drawn: tuple[tuple[int, int], ...] = ()
     placed = [paragraph for paragraph in paragraphs if _placed_from(paragraph)
@@ -1320,11 +1515,139 @@ def _cell_row(measure: _Measure, table: Any, cell: Any, width: int | None = None
     if pieces and metrics:  # as tall as its lines and its tables' pieces: the caches of a cell Hancom split over a
         content = max(content, _lines_height(metrics, leads))  # page end hold its parts, each from the top
         height = max(height, vertical + content)
+    detail = ()
+    undetailed = ""
+    # (a cell laid out as Hancom drew it around an object placed from a paragraph, or in front of or behind its
+    # text, keeps no lines: they would read as all the cell holds)
+    if measure.trace and (wrapped or pieces or squeezed):
+        undetailed = "cell lines not kept: " + (
+            "laid out clear of an object placed from a paragraph" if wrapped else
+            "its tables split with the cell, their pieces among its lines" if pieces else
+            "its text is pressed onto one line (lineWrap)")
+    elif measure.trace and drawn and any(
+            _local(child) in _OBJECTS and (child.find(f"{HP}pos") is None or child.find(f"{HP}pos").get("treatAsChar") != "1")
+            for paragraph in paragraphs for run in paragraph.findall(f"{HP}run") for child in run):
+        undetailed = "cell lines not kept: laid out as Hancom drew them around an object placed from a paragraph"
+    elif measure.trace:
+        try:
+            detail = _cell_line_detail(measure, paragraphs, inner, lines, content, before, margins, drawn, metrics)
+        except _Unsupported:
+            pass  # additional measurements cannot change whether the page estimate answers
+        undetailed = "" if detail else "cell lines not kept: its lines do not add up to the height the layout took"
+    if measure.trace and nested:  # its tables the layout took as tall as Hancom drew them, their rows not asked for
+        for held in (child for paragraph in paragraphs for run in paragraph.findall(f"{HP}run") for child in run
+                     if _local(child) == "tbl"):
+            if measure.source_control(held) not in measure.inline_tables:
+                size = held.find(f"{HP}sz")
+                _trace_table_rows(measure, held, None if size is None else _stored_int_or_none(size.get("height")))
     return _Row(height, len(metrics) if pieces else lines, pitch, char_size, vertical,
                 cell.get("header") == "1", spare=height - vertical - content, nested=nested, metrics=metrics,
                 first=first, leads=leads if spaced or before or pieces else (), pieces=pieces, reaches=reaches,
                 cuts=_line_cuts(measure, paragraphs, inner) if pieces else (),
-                blocks=_line_blocks(measure, paragraphs, inner) if pieces else ())
+                blocks=_line_blocks(measure, paragraphs, inner) if pieces else (), detail=detail,
+                valign=sub_list.get("vertAlign", "TOP") if measure.trace and sub_list is not None else "TOP",
+                undetailed=undetailed)
+
+
+def _cell_line_detail(measure: _Measure, paragraphs: list[Any], width: int, count: int, height: int,
+                      before: int, margins: Any, drawn: tuple[tuple[int, int], ...] = (),
+                      known: tuple[tuple[int, int], ...] = ()) -> tuple[tuple[_CellLine, ...], ...]:
+    """Retain the line metrics when the ordinary cell stack and its line sequence agree; *drawn*: the lines of a
+    cell laid out as Hancom drew them (:func:`_drawn_lines`), one for each line of its paragraphs' layout caches
+    (a drawn line taking the room of an object above it has no top of its own); *known*: the cell's lines as
+    :meth:`_Measure.stack_lines` lays them out, when its row read them already."""
+
+    metrics = drawn or known or measure.stack_lines(paragraphs, width, caches=True)
+    if not metrics or len(metrics) != count or _lines_height(metrics, (before,)) != height:
+        return ()
+    y, cursor = before + margins.top, 0
+    result = []
+    for paragraph in paragraphs:
+        runs = paragraph.findall(f"{HP}run")
+        segments = paragraph.findall(f"{HP}linesegarray/{HP}lineseg") if drawn else []
+        length = len(segments) if drawn else 1 if _table_alone(runs) is not None and not _run_text(runs) \
+            else len(measure.stack_lines([paragraph], width, caches=True))  # (a table alone is one line)
+        if cursor + length > len(metrics):
+            return ()
+        content = _cell_text_ranges(measure, paragraph, runs, width, length)
+        standing = _table_lines(measure, paragraph, runs, length)
+        above = None if drawn else measure.shape(paragraph.get("paraPrIDRef")).prev if result else before
+        measured = []
+        for index, (tall, advance) in enumerate(metrics[cursor:cursor + length]):
+            detail = content[index] if content else None
+            if detail is not None and detail.x is not None:
+                detail = replace(detail, x=detail.x + margins.left)
+            if index in standing and detail is not None:  # its text is not the whole line: the tables stand among it
+                detail = replace(detail, text=None)
+            own = not (drawn and str(tall) != segments[index].get("textheight"))
+            measured.append(_CellLine(tall, y if own else None, detail, standing.get(index, ()),
+                                      above if index == 0 or above is None else 0))
+            y += advance
+        result.append(tuple(measured))
+        cursor += length
+    return tuple(result) if cursor == count else ()
+
+
+def _table_lines(measure: _Measure, paragraph: Any, runs: list[Any], count: int,
+                 kinds: Collection[str] = ("tbl",)) -> dict[int, tuple[Any, ...]]:
+    """Placement tracing only: the line of a cell paragraph of *count* lines -> the tables set as characters (the
+    original hp:tbl) standing on it. A table alone in its paragraph is the paragraph's one line; among the text of
+    a paragraph keeping its layout cache a table stands on the line whose text range holds its place (Hancom counts
+    every object and control as eight characters, see :func:`_anchor_line`). Where its line is not known (a table
+    among text laid out here, text marks whose place in the cache is not established) the table is left out."""
+
+    tables = [child for run in runs for child in run if _local(child) in kinds  # (*kinds*: other objects so set)
+              and child.find(f"{HP}pos") is not None and child.find(f"{HP}pos").get("treatAsChar") == "1"]
+    if not tables:
+        return {}
+    if count == 1:
+        return {0: tuple(measure.source_control(table) for table in tables)}
+    if not _cached_metrics(paragraph):
+        return {}
+    places: dict[Any, int] = {}
+    if measure.native_positions(paragraph, controls=places) is None:
+        return {}
+    starts: list[int] = []
+    for segment in paragraph.findall(f"{HP}linesegarray/{HP}lineseg"):
+        start = _stored_int_or_none(segment.get("textpos"))
+        if start is None or starts and start < starts[-1]:
+            return {}
+        starts.append(start)
+    if len(starts) != count:
+        return {}
+    found: dict[int, tuple[Any, ...]] = {}
+    for table in tables:
+        source = measure.source_control(table)
+        if source not in places:
+            return {}
+        line = max((index for index, start in enumerate(starts) if start <= places[source]), default=0)
+        found[line] = (*found.get(line, ()), source)
+    return found
+
+
+def _cell_text_ranges(measure: _Measure, paragraph: Any, runs: list[Any], width: int,
+                      count: int, *, caches: bool = True) -> tuple[_LineContent, ...]:
+    native = measure.native_positions(paragraph)
+    if caches and _cached_metrics(paragraph) and _table_alone(runs) is None:
+        content = _cache_line_content(paragraph, native)
+    elif _placed_objects(runs) or _marks(runs) or native is None:
+        if not measure.trace or native is None:
+            return ()
+        from ._placement import _object_line_content  # placement tracing only
+        content = _object_line_content(measure, paragraph, runs, width, count, native)
+    else:
+        size, refs, sizes = _text_size(measure, runs, paragraph)
+        shape = measure.shape(paragraph.get("paraPrIDRef"))
+        style = measure.style(paragraph.get("paraPrIDRef"), refs, paragraph)
+        widths = _line_widths(shape, width, style)
+        text = _run_text(runs)
+        looks = _char_styles(measure, paragraph, runs)
+        if measure.mixed_lines(paragraph, runs, shape, width):
+            starts = _metric_starts(measure, text, widths, sizes, style, {}, looks)
+        else:
+            starts = measure.line_starts(text, widths, size, style)
+        content = _measured_line_content(native, text, starts, widths, shape, width)
+    return content if len(content) == count else ()
 
 
 def _table_first(measure: _Measure, obj: Any) -> int:
@@ -1562,6 +1885,8 @@ class _Wrap:
     #: paragraph's right margin, the margin on the object's side taking no more (see :meth:`pieces`)
     room: tuple[int, int] = (0, 0)
     column: int = 0
+    #: Text room on each side of a column-relative object. Does not participate in line breaking.
+    trace_room: tuple[int, int] = (0, 0)
 
     def pieces(self, full: float, right: int) -> list[float]:
         """The widths of a line beside an object with *room*, its pieces one on each side with text: a line
@@ -1591,6 +1916,9 @@ class _Anchor:
     table: _FlowTable | None  # a table flowing with the text, or
     height: int               # the height of any other object, its outer margins included
     stays: bool = False       # that object does not flow with the text (pos@flowWithText="0")
+    source: Any = None
+    x: int | None = None
+    paper_x: bool = False
 
 
 @dataclass(frozen=True)
@@ -1616,6 +1944,17 @@ class _Stacked:
     right: int
     height: int
     table: _FlowTable | None = None
+    source: Any = None
+
+
+@dataclass(frozen=True)
+class _ObjectAnchorTrace:
+    source: Any
+    line: int = 0
+    y: int | None = None  # relative to the accepted line
+    x: int | None = None
+    paper_x: bool = False
+    table: _FlowTable | None = None  # a table the layout sets down as one block: its rows, from *y* down
 
 
 @dataclass(frozen=True)
@@ -1711,6 +2050,11 @@ class _Para:
     #: a flowing table alone in this empty paragraph, allowed to overlap and starting on the line: the line goes
     #: below it (see :meth:`_Paginator._flow`)
     under: bool = False
+    content: tuple[_LineContent, ...] = ()
+    inline_tables: tuple[tuple[int, _FlowTable], ...] = ()
+    text_unavailable: str | None = None
+    object_traces: tuple[_ObjectAnchorTrace, ...] = ()
+    note_traces: dict[int, tuple[Any, ...]] = field(default_factory=dict)
 
     def height(self, line: int) -> int:
         return self.cached[line][0] if self.cached else self.size
@@ -1742,6 +2086,7 @@ class _Reflow:
     starts: tuple[int, ...] = ()
     end: int = 0   # the paragraph's end (see :func:`_end_size`)
     head: int = 0  # its label (see :func:`_head_size`)
+    native: tuple[list[tuple[int, str]], int] | None = None
     wrapped: bool = False  # its lines from *offset* on are broken beside a band (see :meth:`banded`)
 
     def at(self, para: _Para, width: int, line: int) -> _Para:
@@ -1761,7 +2106,8 @@ class _Reflow:
         starts = self.measure.line_starts(text, widths, min(sizes), self.style, sizes if mixed else None, looks)
         cached = _line_metrics(self.measure, text, widths, sizes, self.style, self.shape, {}, looks) \
             if mixed or looks is not None or self.shape.font_line else ()
-        return replace(para, lines=len(starts), cached=cached,
+        content = _measured_line_content(self.native, self.text, starts, widths, self.shape, width, offset=offset)
+        return replace(para, lines=len(starts), cached=cached, content=content,
                        reflow=replace(self, width=width, offset=offset, starts=tuple(starts), wrapped=False))
 
     def banded(self, para: _Para, line: int, wrap: _Wrap) -> _Para:
@@ -1788,12 +2134,16 @@ class _Reflow:
         if offset:  # the rest: none of its lines is the paragraph's first
             widths = [widths[1], widths[1]]
         several = sizes if len(set(sizes)) > 1 else None
+        offsets: list[float | None] | None = [] if self.native is not None else None
         lines, firsts = _wrapped_widths(self.measure, text, widths, min(sizes), self.style, self.shape, wrap,
-                                        several, looks)
+                                        several, looks, column=self.width, offsets=offsets)
         pieces = self.measure.line_starts(text, lines, min(sizes), self.style, several, looks)
         metrics = _at_one_height(_line_metrics(self.measure, text, lines, sizes, self.style, self.shape, {}, looks,
                                                end=self.end, head=0 if offset else self.head), firsts)
-        return replace(para, lines=len(metrics), cached=metrics,
+        captured = [*pieces, len(text)] if len(metrics) > len(pieces) else pieces
+        content = _measured_line_content(self.native, self.text, captured, lines, self.shape,
+                                         self.width, offset=offset, offsets=offsets)
+        return replace(para, lines=len(metrics), cached=metrics, content=content,
                        reflow=replace(self, offset=offset, starts=tuple(pieces), wrapped=True))
 
 
@@ -1821,8 +2171,44 @@ def _inline_table_height(measure: _Measure, table: Any) -> int:
     if _holds_table(table) or any(_row_span(tc) != 1 for tc in table.iter(f"{HP}tc")):
         paragraphs = list(table.iter(f"{HP}p"))
         if paragraphs and all(_cache_lines(paragraph) for paragraph in paragraphs):
-            return int(table.find(f"{HP}sz").get("height", 0))
-    return _rows_height(measure, table)
+            saved = int(table.find(f"{HP}sz").get("height", 0))
+            if measure.trace:
+                _trace_table_rows(measure, table, saved)
+            return saved
+    if not measure.trace:
+        return _rows_height(measure, table)
+    rows, cells = _table_rows(measure, table)
+    source = measure.source_control(table)
+    measure.inline_tables[source] = _FlowTable(
+        rows, "NONE", False, _table_ends(table), tuple(cells), source=source,
+    )
+    return sum(row.height for row in rows) + _cell_spacing(table)
+
+
+#: Why a table's rows have no heights in the placement: see :attr:`_FlowTable.doubt`.
+_SAVED_HEIGHT_DIFFERS = "row heights not measured: the table is laid out as Hancom drew it, and its rows do not add up to the height saved for it"
+
+
+def _trace_table_rows(measure: _Measure, table: Any, drawn: int | None) -> None:
+    """Placement tracing only: the rows of a table the layout takes *drawn* tall, as Hancom drew it, without asking
+    for its rows (see :func:`_inline_table_height`). The rows are the row model's (:func:`_table_rows`); when they
+    do not add up to *drawn* their heights are not reported (:attr:`_FlowTable.doubt`), and when the row model does
+    not follow the table it is left without rows, the reason kept in ``measure.untraced_tables``. Nothing here
+    reaches the estimate: whatever goes wrong only leaves the table without rows."""
+
+    source = measure.source_control(table)
+    if source in measure.inline_tables or source in measure.untraced_tables:
+        return
+    try:
+        rows, cells = _table_rows(measure, table)
+        ends = _table_ends(table)
+        tall = sum(row.height for row in rows) + _cell_spacing(table)
+    except Exception as exc:  # noqa: BLE001 - tracing must not change whether the estimate answers
+        reason = str(exc) if isinstance(exc, _Unsupported) else type(exc).__name__
+        measure.untraced_tables[source] = f"rows of a table laid out as tall as Hancom saved it are not followed: {reason}"
+        return
+    measure.inline_tables[source] = _FlowTable(rows, "NONE", False, ends, tuple(cells), source=source,
+                                               doubt=None if tall == drawn else _SAVED_HEIGHT_DIFFERS)
 
 
 def _rows_height(measure: _Measure, table: Any) -> int:
@@ -2242,7 +2628,8 @@ def _metric_starts(measure: _Measure, text: str, widths: list[float], sizes: lis
 def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list[int], style: Any,
                   shape: _Shape, objects: dict[int, tuple[int, int]], styles: list[Any] | None = None,
                   marks: dict[int, int] | None = None, end: int = 0, head: int = 0,
-                  held: dict[int, int] | None = None) -> tuple[tuple[int, int], ...]:
+                  held: dict[int, int] | None = None,
+                  starts_out: list[int] | None = None) -> tuple[tuple[int, int], ...]:
     """(height, advance) of each line FormFit breaks *text* into, every character at its own size: a line
     is as tall as its largest character, its line spacing reckoned from that size. An object set as a
     character (*objects*: its place in *text* -> its width and height) takes its width on its line and
@@ -2257,6 +2644,8 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
     (:func:`_line_sizes`)."""
 
     starts = _metric_starts(measure, text, widths, sizes, style, objects, styles, marks)
+    if starts_out is not None:
+        starts_out.extend(starts)
     heights = _line_sizes(measure, sizes, style, styles, shape)
     if shape.font_line:
         end, head = measure.font_line(end, style), measure.font_line(head, style)
@@ -2278,6 +2667,14 @@ def _line_metrics(measure: _Measure, text: str, widths: list[float], sizes: list
 
 
 def _drawn_height(obj: Any, measure: _Measure) -> int:
+    height = _drawn_height_value(obj, measure)
+    if measure.trace and _local(obj) in _DRAWINGS:
+        width = _stored_int_or_none(obj.find(f"{HP}sz").get("width"))
+        measure.drawn_sizes[measure.source_control(obj)] = (width, height)
+    return height
+
+
+def _drawn_height_value(obj: Any, measure: _Measure) -> int:
     """How tall Hancom draws *obj*: a drawing holding a text box (hp:drawText) as tall as the box's text and
     its margins when that is taller than hp:sz -- Hancom grows the drawing to hold them, writing the grown size
     to hp:curSz alone (negative for a drawing scaled upside down), at times one less, which makes that a lower
@@ -2402,7 +2799,7 @@ def _caption_beside(obj: Any) -> int:
 
 
 def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored: Any = None,
-                    placed: tuple[Any, ...] = ()) -> tuple[
+                    placed: tuple[Any, ...] = (), *, controls: dict[int, Any] | None = None) -> tuple[
         str, list[int], list[Any], dict[int, tuple[int, int]], dict[int, int]]:
     """The paragraph's text with each object set as a character, composed character and ruby text in its
     place (U+FFFC), each character's size and style (ruby text's is the height of its line), each
@@ -2430,9 +2827,13 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
                 if child.find(f"{HP}pos").get("treatAsChar") != "1" or shape.kind not in ("PERCENT", "FIXED"):
                     raise _Unsupported("an object with text or other objects in its paragraph")
                 objects[len(text)] = _object_extent(child, measure)
+                if controls is not None:
+                    controls[len(text)] = measure.source_control(child)
                 part = "\ufffc"
             elif name in _MARKS:
                 marks[len(text)], tall = _mark_extent(child, height, look)
+                if controls is not None:
+                    controls[len(text)] = measure.source_control(child)
                 text.append("\ufffc")
                 sizes.append(tall)
                 looks.append(look)
@@ -2441,6 +2842,8 @@ def _inline_content(measure: _Measure, paragraph: Any, runs: list[Any], anchored
                 part = _t_text(child)
             elif text and _shown_control(child):  # a character of no width as tall as its run's, on the line it
                 objects[len(text)] = (0, height)  # falls on: an object's that fits, the next past one wider than it
+                if controls is not None:
+                    controls[len(text)] = measure.source_control(child)
                 part = "￼"
             else:
                 continue
@@ -2516,7 +2919,8 @@ def _wraps_top_and_bottom(obj: Any, column: int) -> bool:
 
 
 def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int, style: Any, shape: _Shape,
-                    wrap: _Wrap, sizes: list[int] | None, looks: list[Any] | None) -> tuple[list[float], set[int]]:
+                    wrap: _Wrap, sizes: list[int] | None, looks: list[Any] | None, *,
+                    column: int = 0, offsets: list[float | None] | None = None) -> tuple[list[float], set[int]]:
     """Each FormFit line's width with the lines whose top is in *wrap*'s band cut narrower, or split in two
     pieces at one height beside an object with text on both sides, and the FormFit lines that are such a
     line's first piece (FormFit breaks the lines, and which lines are in the band follows from their
@@ -2526,18 +2930,34 @@ def _wrapped_widths(measure: _Measure, text: str, widths: list[float], size: int
     for _ in range(8):
         lines: list[float] = []
         firsts: set[int] = set()
+        if offsets is not None:
+            offsets.clear()
+        right = column - shape.right
         for index in range(max(narrow, default=0) + 2):
             full = widths[min(index, 1)]
+            plain_left = right - full
             if index in narrow and wrap.column:
                 pieces = wrap.pieces(full, shape.right)
                 if len(pieces) > 1:
                     firsts.add(len(lines))
                 lines += pieces
+                if offsets is not None:
+                    if wrap.room[0]:
+                        offsets.append(plain_left)
+                    if wrap.room[1]:
+                        offsets.append(right - pieces[-1])
             elif index in narrow and wrap.split:
                 firsts.add(len(lines))
                 lines += [wrap.split, full - wrap.cut - wrap.split]
+                if offsets is not None:
+                    offsets.extend((plain_left, right - lines[-1]))
             else:
                 lines.append(full - (wrap.cut if index in narrow else 0))
+                if offsets is not None:
+                    if index not in narrow or wrap.trace_room[0]:
+                        offsets.append(plain_left)
+                    else:
+                        offsets.append(right - lines[-1] if wrap.trace_room[1] else None)
         starts = measure.line_starts(text, lines, size, style, sizes, looks)
         top, found, index, piece = 0, set(), 0, 0
         while piece < len(starts):
@@ -2580,6 +3000,7 @@ def _lines_of(para: _Para, first: int, count: int, *, prev: int, after: int) -> 
 
     cached = para.cached[first:first + count] if para.cached else ()
     return replace(para, lines=count, prev=prev, next=after, cached=cached, notes={}, anchor=None,
+                   content=para.content[first:first + count],
                    keep_next=False if after == 0 else para.keep_next)
 
 
@@ -2621,7 +3042,17 @@ def _header_moves(table: _FlowTable, y: int, body: int) -> bool:
         and y > table.margins[0]
 
 
-def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, int]:
+def _whole_rows(table: _FlowTable, frame: int, top: int, first: int, stop: int,
+                parts: list[_RowPart], *, repeated: bool = False) -> None:
+    for index in range(first, stop):
+        row = table.rows[index]
+        if not repeated or row.header:
+            parts.append(_RowPart(index, frame, top, row.height, 0, row.lines, repeated))
+            top += row.height
+
+
+def _flow_table(table: _FlowTable, frame: int, y: int, body: int,
+                parts: list[_RowPart] | None = None) -> tuple[int, int]:
     """Lay the rows out from vertical position *y*; the frame and position where the table ends."""
 
     body -= table.margins[1]  # the rows keep the table's bottom margin above the page end
@@ -2635,6 +3066,8 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
         height = sum(row.height for row in table.rows)
         if y + height > foot and y != header:
             frame, y = frame + 1, header
+        if parts is not None:
+            _whole_rows(table, frame, y, 0, len(table.rows), parts)
         return frame, y + height
     rows, index = table.rows, 0
     while index < len(rows):
@@ -2649,30 +3082,43 @@ def _flow_table(table: _FlowTable, frame: int, y: int, body: int) -> tuple[int, 
                 frame, y = frame + 1, header
             if y + height > foot:
                 raise _Unsupported("rows merged together taller than a page")
+            if parts is not None:
+                _whole_rows(table, frame, y, index, end + 1, parts)
             y, index = y + height, end + 1
             continue
         if table.mode == "CELL" and end > index and table.cells \
                 and y + sum(row.height for row in rows[index:end + 1]) > foot:  # split cell by cell
-            frame, y = _split_block(table, index, end, frame, y, room, header)
+            frame, y = _split_block(table, index, end, frame, y, room, header, parts)
             index = end + 1
             continue
         before, start = frame, y
         above = index == len(rows) - 1 and table.caption[1] and table.mode == "CELL" and rows[index].spare \
             and not rows[index].nested  # a caption below keeps its room: the row's room to spare is cut above it
+        trace = _RowTrace(index) if parts is not None else None
         frame, y = _flow_row(table.mode, rows[index], frame, y,
                              body - (table.caption[1] if above else 0) if index == len(rows) - 1 else room, header,
-                             table.cut)
+                             table.cut, trace)
         if rows[index].merged and frame != before:
             raise _Unsupported("a page break among rows merged in a flowing table")
         if index == len(rows) - 1 and table.caption[1] and not above and frame == before and start != header \
                 and y + table.caption[1] > foot:  # a caption below goes on with the last row
             frame, y = frame + 1, header + rows[index].height
+            if trace is not None:
+                trace.parts.clear()
+                trace.add(frame, header, rows[index].height, rows[index].lines)
+        if parts is not None and trace is not None:
+            parts.extend(trace.parts)
         index += 1
+    if parts and table.repeat_header:
+        first = parts[0].frame
+        for continuation in sorted({part.frame for part in parts} - {first}):
+            _whole_rows(table, continuation, table.margins[0], 0, len(rows), parts, repeated=True)
+        parts.sort(key=lambda part: (part.frame, part.top, part.row))
     return frame, y
 
 
 def _split_block(table: _FlowTable, first: int, last: int, frame: int, y: int, body: int,
-                 header: int) -> tuple[int, int]:
+                 header: int, parts: list[_RowPart] | None = None) -> tuple[int, int]:
     """Rows *first*..*last*, joined by merged cells and starting at *y*, in a table split between cell
     lines when the page end falls among them: each page keeps the lines that fit, and what is left goes on
     below the next page's *header*, split again at that page's end until it fits. The frame and position
@@ -2682,9 +3128,26 @@ def _split_block(table: _FlowTable, first: int, last: int, frame: int, y: int, b
     while True:
         cut, heights, cells = _block_rest(table, first, last, y, body)
         rest = sum(heights.values())
+        if parts is not None:
+            placed: list[_RowPart] = []
+            _whole_rows(table, frame, y, first, cut, placed)
+            cut_top = y + sum(row.height for row in table.rows[first:cut])
+            left = {cell.source_cell: cell.lines for _, _, cell in cells}
+            kept_text = any(start == cut and cell.lines > left.get(cell.source_cell, 0)
+                            for start, _, cell in table.cells)
+            if cut_top < foot and (not rest or kept_text or heights[cut] < table.rows[cut].height):
+                placed.append(_RowPart(cut, frame, cut_top, foot - cut_top, None, None))
+            parts.extend(_block_cell_parts(placed, table.cells, left))
         if not rest:  # every cell done above the page end, what it declares below dropped: they end there
             return frame, body
         if header + rest <= foot:
+            if parts is not None:
+                top = header
+                placed = []
+                for row, height in heights.items():
+                    placed.append(_RowPart(row, frame + 1, top, height, None, None))
+                    top += height
+                parts.extend(_block_cell_parts(placed, cells, {}))
             return frame + 1, header + rest
         if before is not None and rest >= before:  # nothing of it fits a page
             raise _Unsupported("rows merged together taller than a page")
@@ -2692,6 +3155,22 @@ def _split_block(table: _FlowTable, first: int, last: int, frame: int, y: int, b
         for index, height in heights.items():
             rows[index] = replace(rows[index], height=height)
         table, first, frame, y, before = replace(table, rows=rows, cells=tuple(cells)), cut, frame + 1, header, rest
+
+
+def _block_cell_parts(parts: list[_RowPart], cells: Collection[tuple[int, int, _Row]],
+                      left: dict[int | None, int]) -> list[_RowPart]:
+    """Use the actual retained line counts of a merged block, including a carried cell's address."""
+
+    present = {part.row for part in parts}
+    starts: dict[int, list[_CellSlice]] = {}
+    for start, span, cell in cells:
+        source = cell.source_cell
+        if source is None or start not in present:
+            continue
+        visible = sum(row in present for row in range(start, start + span))
+        stop = cell.cell_line_start + cell.lines - left.get(source, 0)
+        starts.setdefault(start, []).append(_CellSlice(source, visible, cell.cell_line_start, stop))
+    return [replace(part, cells=tuple(starts.get(part.row, ()))) for part in parts]
 
 
 def _block_rest(table: _FlowTable, first: int, last: int, top: int,
@@ -2726,7 +3205,8 @@ def _block_rest(table: _FlowTable, first: int, last: int, top: int,
         rest, begin = part[0], max(start, cut)
         left = part[1]  # the lines it has left are its last ones
         # Once a line was consumed, a uniform paragraph no longer starts below its original spacing before.
-        cells.append((begin, end - begin + 1, replace(cell, height=rest, lines=left, **(
+        cells.append((begin, end - begin + 1, replace(cell, height=rest, lines=left,
+                                                    cell_line_start=cell.cell_line_start + cell.lines - left, **(
             {"metrics": cell.metrics[len(cell.metrics) - left:], "leads": cell.leads[len(cell.leads) - left:]}
             if _lists_lines(cell) else {"first": cell.size if left < cell.lines else cell.first}))))
         if span == 1:
@@ -2779,7 +3259,7 @@ def _cell_rest(cell: _Row, top: int, foot: int) -> tuple[int, int] | None:
 
 
 def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
-              cut: int = _SPARE_CUT) -> tuple[int, int]:
+              cut: int = _SPARE_CUT, trace: _RowTrace | None = None) -> tuple[int, int]:
     """A row that does not fit even a fresh page is drawn there anyway, cut at the paper's edge;
     CELL breaks a row between its lines, or a row taller than its text just above the page's foot."""
 
@@ -2787,9 +3267,15 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
     cuts, blocks = row.cuts, row.blocks
     foot = body - cut
     consumed = 0  # how far down the cell's lines the part on this page starts
+
+    def finish(end: int) -> tuple[int, int]:
+        if trace is not None:
+            trace.add(frame, y, end - y, row.lines - trace.line if trace.line is not None else None)
+        return frame, end
+
     while True:
         if y + height <= foot:
-            return frame, y + height
+            return finish(y + height)
         fresh = y == header
         if mode == "CELL" and row.reaches and row.spare:
             raise _Unsupported("a page end in a row declared taller than its text holding a table among its text")
@@ -2801,12 +3287,14 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
                 if fitting < len(metrics):  # its lines do not all fit: those that do not go on, at least
                     rest = max(rest, row.margins + _lines_height(metrics[fitting:], leads[fitting:]))
                 elif rest <= _SPARE_DROPPED:
-                    return frame, body
+                    return finish(body)
+                if trace is not None:
+                    trace.add(frame, y, foot - y, fitting)
                 frame, y, nested = frame + 1, header, False
                 remaining, height = 1, rest
                 continue
             if fresh:
-                return frame, y + height
+                return finish(y + height)
             frame, y = frame + 1, header
             continue
         if mode == "CELL" and nested and not row.pieces:  # between its lines, each as tall as it is (a table
@@ -2815,7 +3303,7 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
                 if consumed or y + row.margins + row.first <= foot:
                     raise _Unsupported("a page break in a flowing table row holding a table")
                 if fresh:  # no cell's first line fits (the table one stands on): the row goes on whole
-                    return frame, y + height
+                    return finish(y + height)
                 frame, y = frame + 1, header
                 continue
             fitting, top = 0, y + row.margins + (leads[0] if leads else 0)  # a part starts below its first
@@ -2828,6 +3316,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
                              else None) if row.reaches and fitting < len(metrics) else None
             if found is not None:  # a table among the text splits or goes on alone: what of it goes on, and that line
                 piece, consumed = found
+                if trace is not None and consumed > cut:
+                    trace.add(frame, y, None, None)
                 metrics = (piece,) + metrics[fitting + 1:]
                 leads = (0,) + leads[fitting + 1:] if leads else ()
                 height = row.margins + _lines_height(metrics, leads)
@@ -2837,15 +3327,19 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             if fitting == len(metrics):  # every line fits, the cell's bottom margin not: cut like a row's
                 rest = height - (foot - y)
                 if rest <= _SPARE_DROPPED:
-                    return frame, body
+                    return finish(body)
+                if trace is not None:
+                    trace.add(frame, y, foot - y, fitting)
                 frame, y, nested = frame + 1, header, False
                 remaining, height, metrics, leads = 1, rest, (), ()
                 continue
             if fitting:
+                if trace is not None:
+                    trace.add(frame, y, row.margins + _lines_height(metrics[:fitting], leads[:fitting]), fitting)
                 metrics, leads = metrics[fitting:], leads[fitting:]
                 height = row.margins + _lines_height(metrics, leads)
             elif fresh:
-                return frame, y + height
+                return finish(y + height)
             frame, y = frame + 1, header
             continue
         if mode == "CELL":
@@ -2856,6 +3350,8 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
             split = _split_joined(lines, leads, cuts, blocks, fitting, y + row.margins, foot) \
                 if blocks and fitting < len(lines) else None
             if split is not None:  # among a table's rows joined by merged cells: they split cell by cell
+                if trace is not None:
+                    trace.add(frame, y, foot - y, None)
                 metrics, leads, cuts, blocks = split
                 remaining, height = len(metrics), row.margins + _lines_height(metrics, leads)
                 frame, y = frame + 1, header
@@ -2865,18 +3361,22 @@ def _flow_row(mode: str, row: _Row, frame: int, y: int, body: int, header: int,
                 if fitting < len(lines) and y + height - row.spare > foot:  # its text does not all fit:
                     rest = max(rest, row.margins + _lines_height(lines[fitting:], leads[fitting:]))  # it goes on
                 elif rest <= _SPARE_DROPPED:
-                    return frame, body
+                    return finish(body)
+                if trace is not None:
+                    trace.add(frame, y, foot - y, fitting)
                 frame, y = frame + 1, header
                 remaining, height, metrics, leads, cuts, blocks = 1, rest, (), (), (), ()
                 continue
             if fitting:
+                if trace is not None:
+                    trace.add(frame, y, row.margins + _lines_height(lines[:fitting], leads[:fitting]), fitting)
                 metrics, leads, cuts = lines[fitting:], leads[fitting:], cuts[fitting:]
                 blocks = tuple((start - fitting, *block) for start, *block in blocks if start >= fitting)
                 remaining, height = len(metrics), row.margins + _lines_height(metrics, leads)
             elif fresh:
-                return frame, y + height
+                return finish(y + height)
         elif fresh:
-            return frame, y + height
+            return finish(y + height)
         frame, y = frame + 1, header
 
 

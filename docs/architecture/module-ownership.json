@@ -778,6 +778,12 @@
       "rationale": "The lower half of the experimental page estimate, moved out of layout/pages.py unchanged so that no shipped file passes 256 KiB (the most a plugin directory reads of one file): the constants, the paragraph and table model (_Measure, cell rows and lines, object extents) and the rows of a flowing table. Refers to nothing in layout/pages.py, which imports every name it defines and keeps the public names and the flow over pages and columns. Reads OXML only; writes nothing."
     },
     {
+      "path": "src/hwpx/layout/_placement.py",
+      "disposition": "core",
+      "approvedBy": "owner-preview-placement-2026-11-27 (a third module of the page estimate, file-size ratchet)",
+      "rationale": "The third part of the experimental page estimate: turns what estimate_layout's trace kept while laying a document out (each paragraph's lines, the row parts of tables, the frames of objects and notes) into the public placement objects. Moved out of layout/pages.py so that neither half of the estimate passes four fifths of the 256 KiB a plugin directory reads of one file. The placement classes and everything that lays out stay in layout/pages.py and layout/_page_measure.py; this module only reads their results and changes no page estimate. Reads OXML only; writes nothing."
+    },
+    {
       "path": "src/hwpx/layout/line_cache.py",
       "disposition": "core",
       "approvedBy": "owner-line-cache-2026-10-16",
